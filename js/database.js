@@ -3,7 +3,7 @@
    ========================================== */
 
 const DB_NAME = 'GestorFinancieroApp';
-const DB_VERSION = 1;
+const DB_VERSION = 2;  // Incrementado para agregar papelera y mejorar categorías
 
 let db = null;
 
@@ -17,20 +17,25 @@ const STORES_CONFIG = {
     familia_transferencias: { keyPath: 'id', indexes: ['fecha', 'cuentaOrigen', 'cuentaDestino'] },
     familia_metas: { keyPath: 'id', indexes: ['estado'] },
     familia_presupuesto: { keyPath: 'id', indexes: ['año', 'mes'] },
-    familia_categorias: { keyPath: 'id', indexes: ['tipo'] },
+    familia_categorias: { keyPath: 'id', indexes: ['tipo', 'tipoGasto', 'activa', 'identificador'] },
     familia_recurrentes: { keyPath: 'id', indexes: ['tipo', 'activo'] },
+    familia_papelera: { keyPath: 'id', indexes: ['tipo', 'storeName', 'deletedAt', 'expiresAt'] },
 
     // NEUROTEA
     neurotea_ingresos: { keyPath: 'id', indexes: ['fecha', 'categoria', 'cuentaDestino'] },
     neurotea_egresos: { keyPath: 'id', indexes: ['fecha', 'tipoGasto', 'categoria', 'cuentaOrigen'] },
     neurotea_cuentas: { keyPath: 'id', indexes: ['tipo', 'activa'] },
     neurotea_presupuesto: { keyPath: 'id', indexes: ['año', 'mes'] },
-    neurotea_categorias: { keyPath: 'id', indexes: ['tipo'] },
+    neurotea_categorias: { keyPath: 'id', indexes: ['tipo', 'tipoGasto', 'activa', 'identificador'] },
     neurotea_recurrentes: { keyPath: 'id', indexes: ['tipo', 'activo'] },
+    neurotea_papelera: { keyPath: 'id', indexes: ['tipo', 'storeName', 'deletedAt', 'expiresAt'] },
 
     // GLOBAL
     configuracion: { keyPath: 'id', indexes: [] }
 };
+
+// Días de retención en papelera antes de eliminación permanente
+const DIAS_RETENCION_PAPELERA = 30;
 
 // Inicializar base de datos
 async function inicializarDB() {
@@ -698,7 +703,7 @@ async function verificarNecesidadRespaldo() {
 // Contar registros totales
 async function contarRegistrosTotales() {
     let total = 0;
-    const stores = Object.keys(STORES_CONFIG).filter(s => s !== 'configuracion');
+    const stores = Object.keys(STORES_CONFIG).filter(s => s !== 'configuracion' && !s.includes('papelera'));
 
     for (const store of stores) {
         const registros = await obtenerTodos(store);
@@ -706,4 +711,513 @@ async function contarRegistrosTotales() {
     }
 
     return total;
+}
+
+// ==========================================
+// SOFT DELETE - PAPELERA
+// ==========================================
+
+// Mover elemento a la papelera (soft delete)
+async function softDelete(storeName, id) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            // Obtener el registro original
+            const registro = await obtenerPorId(storeName, id);
+            if (!registro) {
+                reject(new Error('Registro no encontrado'));
+                return;
+            }
+
+            // Determinar el módulo (familia o neurotea)
+            const modulo = storeName.startsWith('familia') ? 'familia' : 'neurotea';
+            const papeleraStore = `${modulo}_papelera`;
+
+            // Crear entrada en papelera
+            const ahora = new Date();
+            const expiracion = new Date(ahora);
+            expiracion.setDate(expiracion.getDate() + DIAS_RETENCION_PAPELERA);
+
+            const elementoPapelera = {
+                id: generarId(),
+                tipo: storeName.split('_').pop(), // ingresos, egresos, cuentas, etc.
+                storeName: storeName,
+                originalId: id,
+                data: JSON.parse(JSON.stringify(registro)), // Copia profunda
+                deletedAt: ahora.toISOString(),
+                expiresAt: expiracion.toISOString()
+            };
+
+            // Guardar en papelera
+            await crear(papeleraStore, elementoPapelera);
+
+            // Eliminar del store original
+            await eliminar(storeName, id);
+
+            resolve({
+                exito: true,
+                papeleraId: elementoPapelera.id,
+                mensaje: `Elemento movido a papelera. Se eliminará permanentemente en ${DIAS_RETENCION_PAPELERA} días.`
+            });
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+// Restaurar elemento desde la papelera
+async function restaurarDesdePapelera(modulo, papeleraId) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            const papeleraStore = `${modulo}_papelera`;
+            const elemento = await obtenerPorId(papeleraStore, papeleraId);
+
+            if (!elemento) {
+                reject(new Error('Elemento no encontrado en papelera'));
+                return;
+            }
+
+            // Restaurar al store original
+            const datosRestaurados = {
+                ...elemento.data,
+                restoredAt: new Date().toISOString()
+            };
+
+            // Verificar si el ID original ya existe
+            const existente = await obtenerPorId(elemento.storeName, elemento.originalId);
+            if (existente) {
+                // Generar nuevo ID si el original ya está ocupado
+                datosRestaurados.id = generarId();
+            }
+
+            await crear(elemento.storeName, datosRestaurados);
+
+            // Eliminar de papelera
+            await eliminar(papeleraStore, papeleraId);
+
+            resolve({
+                exito: true,
+                restauradoId: datosRestaurados.id,
+                storeName: elemento.storeName
+            });
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+// Obtener elementos de la papelera
+async function obtenerPapelera(modulo) {
+    const papeleraStore = `${modulo}_papelera`;
+    const elementos = await obtenerTodos(papeleraStore);
+
+    // Ordenar por fecha de eliminación (más recientes primero)
+    return elementos.sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
+}
+
+// Eliminar permanentemente de la papelera
+async function eliminarPermanente(modulo, papeleraId) {
+    const papeleraStore = `${modulo}_papelera`;
+    return await eliminar(papeleraStore, papeleraId);
+}
+
+// Vaciar papelera completamente
+async function vaciarPapelera(modulo) {
+    const papeleraStore = `${modulo}_papelera`;
+    return await limpiarStore(papeleraStore);
+}
+
+// Limpiar elementos expirados de la papelera
+async function limpiarPapeleraExpirada(modulo) {
+    const papeleraStore = `${modulo}_papelera`;
+    const elementos = await obtenerTodos(papeleraStore);
+    const ahora = new Date();
+    let eliminados = 0;
+
+    for (const elemento of elementos) {
+        if (new Date(elemento.expiresAt) <= ahora) {
+            await eliminar(papeleraStore, elemento.id);
+            eliminados++;
+        }
+    }
+
+    return { eliminados };
+}
+
+// ==========================================
+// GESTIÓN DE CATEGORÍAS DINÁMICAS
+// ==========================================
+
+// Obtener categorías activas por tipo y tipoGasto
+async function obtenerCategorias(modulo, tipo, tipoGasto = null) {
+    const storeName = `${modulo}_categorias`;
+    const todas = await obtenerTodos(storeName);
+
+    return todas.filter(cat => {
+        if (cat.activa === false) return false;
+        if (cat.tipo !== tipo) return false;
+        if (tipoGasto && cat.tipoGasto !== tipoGasto) return false;
+        return true;
+    }).sort((a, b) => (a.orden || 999) - (b.orden || 999));
+}
+
+// Obtener todas las categorías (incluyendo inactivas)
+async function obtenerTodasCategorias(modulo, tipo = null) {
+    const storeName = `${modulo}_categorias`;
+    const todas = await obtenerTodos(storeName);
+
+    if (tipo) {
+        return todas.filter(cat => cat.tipo === tipo)
+            .sort((a, b) => (a.orden || 999) - (b.orden || 999));
+    }
+
+    return todas.sort((a, b) => (a.orden || 999) - (b.orden || 999));
+}
+
+// Crear nueva categoría
+async function crearCategoria(modulo, datos) {
+    const storeName = `${modulo}_categorias`;
+
+    // Generar identificador único basado en el nombre
+    const identificador = datos.identificador ||
+        datos.nombre.toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Quitar acentos
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_|_$/g, '');
+
+    // Verificar que no exista ya
+    const existentes = await obtenerTodos(storeName);
+    const yaExiste = existentes.find(c =>
+        c.identificador === identificador &&
+        c.tipo === datos.tipo &&
+        (datos.tipo === 'ingreso' || c.tipoGasto === datos.tipoGasto)
+    );
+
+    if (yaExiste) {
+        throw new Error('Ya existe una categoría con ese nombre');
+    }
+
+    // Obtener siguiente orden
+    const mismoTipo = existentes.filter(c =>
+        c.tipo === datos.tipo &&
+        (datos.tipo === 'ingreso' || c.tipoGasto === datos.tipoGasto)
+    );
+    const maxOrden = mismoTipo.reduce((max, c) => Math.max(max, c.orden || 0), 0);
+
+    const categoria = {
+        tipo: datos.tipo,
+        tipoGasto: datos.tipoGasto || null,
+        nombre: datos.nombre.trim(),
+        identificador,
+        icono: datos.icono || null,
+        color: datos.color || null,
+        orden: datos.orden || (maxOrden + 1),
+        activa: true,
+        sistema: false,
+        persona: datos.persona || null // Solo para ingresos de familia
+    };
+
+    return await crear(storeName, categoria);
+}
+
+// Actualizar categoría
+async function actualizarCategoria(modulo, id, datos) {
+    const storeName = `${modulo}_categorias`;
+    const categoria = await obtenerPorId(storeName, id);
+
+    if (!categoria) {
+        throw new Error('Categoría no encontrada');
+    }
+
+    // No permitir cambiar identificador de categorías del sistema
+    if (categoria.sistema && datos.identificador && datos.identificador !== categoria.identificador) {
+        throw new Error('No se puede cambiar el identificador de categorías del sistema');
+    }
+
+    return await actualizar(storeName, id, {
+        nombre: datos.nombre !== undefined ? datos.nombre.trim() : categoria.nombre,
+        icono: datos.icono !== undefined ? datos.icono : categoria.icono,
+        color: datos.color !== undefined ? datos.color : categoria.color,
+        orden: datos.orden !== undefined ? datos.orden : categoria.orden,
+        activa: datos.activa !== undefined ? datos.activa : categoria.activa
+    });
+}
+
+// Eliminar categoría (soft delete)
+async function eliminarCategoria(modulo, id) {
+    const storeName = `${modulo}_categorias`;
+    const categoria = await obtenerPorId(storeName, id);
+
+    if (!categoria) {
+        throw new Error('Categoría no encontrada');
+    }
+
+    if (categoria.sistema) {
+        throw new Error('No se pueden eliminar categorías del sistema');
+    }
+
+    // Verificar si hay movimientos usando esta categoría
+    const storeMovimientos = categoria.tipo === 'ingreso'
+        ? `${modulo}_ingresos`
+        : `${modulo}_egresos`;
+
+    const movimientos = await obtenerPorIndice(storeMovimientos, 'categoria', categoria.identificador);
+
+    if (movimientos.length > 0) {
+        return {
+            exito: false,
+            tieneReferencias: true,
+            cantidadReferencias: movimientos.length,
+            mensaje: `Esta categoría tiene ${movimientos.length} movimiento(s) asociado(s). Reasigne los movimientos antes de eliminar.`
+        };
+    }
+
+    // Si no hay referencias, mover a papelera
+    return await softDelete(storeName, id);
+}
+
+// Reasignar movimientos de una categoría a otra
+async function reasignarCategoria(modulo, categoriaOrigenId, categoriaDestinoId) {
+    const storeCategorias = `${modulo}_categorias`;
+    const origen = await obtenerPorId(storeCategorias, categoriaOrigenId);
+    const destino = await obtenerPorId(storeCategorias, categoriaDestinoId);
+
+    if (!origen || !destino) {
+        throw new Error('Categoría no encontrada');
+    }
+
+    if (origen.tipo !== destino.tipo) {
+        throw new Error('Las categorías deben ser del mismo tipo');
+    }
+
+    const storeMovimientos = origen.tipo === 'ingreso'
+        ? `${modulo}_ingresos`
+        : `${modulo}_egresos`;
+
+    const movimientos = await obtenerPorIndice(storeMovimientos, 'categoria', origen.identificador);
+    let actualizados = 0;
+
+    for (const mov of movimientos) {
+        await actualizar(storeMovimientos, mov.id, {
+            categoria: destino.identificador
+        });
+        actualizados++;
+    }
+
+    return { actualizados };
+}
+
+// Inicializar categorías predeterminadas si no existen
+async function inicializarCategoriasPredeterminadas(modulo) {
+    const storeName = `${modulo}_categorias`;
+    const existentes = await obtenerTodos(storeName);
+
+    // Si ya hay categorías, no hacer nada
+    if (existentes.length > 0) {
+        return { mensaje: 'Categorías ya inicializadas', nuevas: 0 };
+    }
+
+    const categoriasFamilia = {
+        egresos: {
+            fijo: [
+                { nombre: 'Expensas', identificador: 'expensas' },
+                { nombre: 'ANDE (Electricidad)', identificador: 'ande' },
+                { nombre: 'Escuela', identificador: 'escuela' },
+                { nombre: 'Agua (ESSAP)', identificador: 'agua' },
+                { nombre: 'Internet', identificador: 'internet' },
+                { nombre: 'Teléfono', identificador: 'telefono' },
+                { nombre: 'Cuota Préstamo', identificador: 'cuota_prestamo' }
+            ],
+            variable: [
+                { nombre: 'Alimentación', identificador: 'alimentacion' },
+                { nombre: 'Transporte/Combustible', identificador: 'transporte' },
+                { nombre: 'Salud/Farmacia', identificador: 'salud' },
+                { nombre: 'Ropa', identificador: 'ropa' },
+                { nombre: 'Supermercado', identificador: 'supermercado' }
+            ],
+            mantenimiento: [
+                { nombre: 'Casa', identificador: 'casa' },
+                { nombre: 'Vehículo', identificador: 'vehiculo' }
+            ],
+            ocio: [
+                { nombre: 'Restaurantes', identificador: 'restaurantes' },
+                { nombre: 'Viajes', identificador: 'viajes' },
+                { nombre: 'Suscripciones', identificador: 'suscripciones' }
+            ]
+        },
+        ingresos: {
+            marco: [
+                { nombre: 'Salario', identificador: 'salario' },
+                { nombre: 'Vacaciones', identificador: 'vacaciones' },
+                { nombre: 'Aguinaldo', identificador: 'aguinaldo' },
+                { nombre: 'Contrato', identificador: 'contrato' },
+                { nombre: 'Viático', identificador: 'viatico' }
+            ],
+            clara: [
+                { nombre: 'Salario', identificador: 'salario_clara' }
+            ],
+            otro: [
+                { nombre: 'Otros Ingresos', identificador: 'otros_ingresos' }
+            ]
+        }
+    };
+
+    const categoriasNeurotea = {
+        egresos: {
+            fijo: [
+                { nombre: 'Alquiler del Local', identificador: 'alquiler' },
+                { nombre: 'Servicios (Luz, Agua, Internet)', identificador: 'servicios' },
+                { nombre: 'Salarios del Personal', identificador: 'salarios' }
+            ],
+            variable: [
+                { nombre: 'Materiales/Insumos', identificador: 'materiales' },
+                { nombre: 'Marketing/Publicidad', identificador: 'marketing' },
+                { nombre: 'Capacitaciones', identificador: 'capacitaciones' }
+            ],
+            mantenimiento: [
+                { nombre: 'Equipos', identificador: 'equipos' },
+                { nombre: 'Local', identificador: 'local' }
+            ]
+        },
+        ingresos: {
+            principal: [
+                { nombre: 'Aportes de Terapeutas', identificador: 'aportes_terapeutas' }
+            ],
+            otro: [
+                { nombre: 'Otros Ingresos', identificador: 'otros_ingresos' }
+            ]
+        }
+    };
+
+    const categoriasBase = modulo === 'familia' ? categoriasFamilia : categoriasNeurotea;
+    let orden = 1;
+    let nuevas = 0;
+
+    // Crear categorías de egresos
+    for (const [tipoGasto, cats] of Object.entries(categoriasBase.egresos)) {
+        for (const cat of cats) {
+            await crear(storeName, {
+                tipo: 'egreso',
+                tipoGasto,
+                nombre: cat.nombre,
+                identificador: cat.identificador,
+                orden: orden++,
+                activa: true,
+                sistema: true
+            });
+            nuevas++;
+        }
+    }
+
+    // Crear categorías de ingresos
+    for (const [persona, cats] of Object.entries(categoriasBase.ingresos)) {
+        for (const cat of cats) {
+            await crear(storeName, {
+                tipo: 'ingreso',
+                tipoGasto: null,
+                persona: modulo === 'familia' ? persona : null,
+                nombre: cat.nombre,
+                identificador: cat.identificador,
+                orden: orden++,
+                activa: true,
+                sistema: true
+            });
+            nuevas++;
+        }
+    }
+
+    return { mensaje: 'Categorías inicializadas', nuevas };
+}
+
+// ==========================================
+// VERIFICACIÓN DE INTEGRIDAD
+// ==========================================
+
+// Verificar integridad de datos y limpiar huérfanos
+async function verificarIntegridad(modulo) {
+    const resultados = {
+        movimientosConCategoriaInvalida: [],
+        movimientosConCuentaInvalida: [],
+        corregidos: 0,
+        errores: []
+    };
+
+    try {
+        // Obtener todas las categorías válidas
+        const categorias = await obtenerTodos(`${modulo}_categorias`);
+        const identificadoresCategorias = new Set(categorias.map(c => c.identificador));
+
+        // Obtener todas las cuentas
+        const cuentas = await obtenerTodos(`${modulo}_cuentas`);
+        const idsCuentas = new Set(cuentas.map(c => c.id));
+
+        // Verificar ingresos
+        const ingresos = await obtenerTodos(`${modulo}_ingresos`);
+        for (const ing of ingresos) {
+            if (ing.categoria && !identificadoresCategorias.has(ing.categoria)) {
+                resultados.movimientosConCategoriaInvalida.push({
+                    tipo: 'ingreso',
+                    id: ing.id,
+                    categoria: ing.categoria
+                });
+            }
+            if (ing.cuentaDestino && !idsCuentas.has(ing.cuentaDestino)) {
+                resultados.movimientosConCuentaInvalida.push({
+                    tipo: 'ingreso',
+                    id: ing.id,
+                    cuenta: ing.cuentaDestino
+                });
+            }
+        }
+
+        // Verificar egresos
+        const egresos = await obtenerTodos(`${modulo}_egresos`);
+        for (const egr of egresos) {
+            if (egr.categoria && !identificadoresCategorias.has(egr.categoria)) {
+                resultados.movimientosConCategoriaInvalida.push({
+                    tipo: 'egreso',
+                    id: egr.id,
+                    categoria: egr.categoria
+                });
+            }
+            if (egr.cuentaOrigen && !idsCuentas.has(egr.cuentaOrigen)) {
+                resultados.movimientosConCuentaInvalida.push({
+                    tipo: 'egreso',
+                    id: egr.id,
+                    cuenta: egr.cuentaOrigen
+                });
+            }
+        }
+
+    } catch (error) {
+        resultados.errores.push(error.message);
+    }
+
+    return resultados;
+}
+
+// Limpiar referencias inválidas de cuentas eliminadas
+async function limpiarReferenciasHuerfanas(modulo) {
+    const cuentas = await obtenerTodos(`${modulo}_cuentas`);
+    const idsCuentas = new Set(cuentas.map(c => c.id));
+    let limpiados = 0;
+
+    // Limpiar en ingresos
+    const ingresos = await obtenerTodos(`${modulo}_ingresos`);
+    for (const ing of ingresos) {
+        if (ing.cuentaDestino && !idsCuentas.has(ing.cuentaDestino)) {
+            await actualizar(`${modulo}_ingresos`, ing.id, { cuentaDestino: null });
+            limpiados++;
+        }
+    }
+
+    // Limpiar en egresos
+    const egresos = await obtenerTodos(`${modulo}_egresos`);
+    for (const egr of egresos) {
+        if (egr.cuentaOrigen && !idsCuentas.has(egr.cuentaOrigen)) {
+            await actualizar(`${modulo}_egresos`, egr.id, { cuentaOrigen: null });
+            limpiados++;
+        }
+    }
+
+    return { limpiados };
 }

@@ -284,13 +284,23 @@ function estadoVacioHTML(icono, mensaje, botonTexto = null, botonOnclick = null)
     return html;
 }
 
-// Categorías predefinidas
-const CATEGORIAS = {
+// Cache de categorías para evitar consultas excesivas a IndexedDB
+let _cacheCategorias = {
+    familia: null,
+    neurotea: null,
+    lastUpdate: null
+};
+
+// Tiempo de vida del cache (5 minutos)
+const CACHE_TTL = 5 * 60 * 1000;
+
+// Categorías predefinidas (fallback si no hay datos en IndexedDB)
+const CATEGORIAS_DEFAULT = {
     familia: {
         ingresos: {
             marco: ['salario', 'vacaciones', 'aguinaldo', 'contrato', 'viatico'],
             clara: ['salario'],
-            otro: []
+            otro: ['otros_ingresos']
         },
         egresos: {
             fijo: ['expensas', 'ande', 'escuela', 'agua', 'internet', 'telefono', 'cuota_prestamo'],
@@ -302,7 +312,7 @@ const CATEGORIAS = {
     neurotea: {
         ingresos: {
             principal: ['aportes_terapeutas'],
-            otro: []
+            otro: ['otros_ingresos']
         },
         egresos: {
             fijo: ['alquiler', 'servicios', 'salarios'],
@@ -311,6 +321,90 @@ const CATEGORIAS = {
         }
     }
 };
+
+// Mantener CATEGORIAS para compatibilidad, pero será reemplazado dinámicamente
+let CATEGORIAS = JSON.parse(JSON.stringify(CATEGORIAS_DEFAULT));
+
+// Invalidar cache de categorías
+function invalidarCacheCategorias(modulo = null) {
+    if (modulo) {
+        _cacheCategorias[modulo] = null;
+    } else {
+        _cacheCategorias.familia = null;
+        _cacheCategorias.neurotea = null;
+    }
+    _cacheCategorias.lastUpdate = null;
+}
+
+// Cargar categorías desde IndexedDB y actualizar el objeto CATEGORIAS
+async function cargarCategoriasDB(modulo) {
+    try {
+        // Verificar cache
+        const ahora = Date.now();
+        if (_cacheCategorias[modulo] && _cacheCategorias.lastUpdate &&
+            (ahora - _cacheCategorias.lastUpdate) < CACHE_TTL) {
+            return _cacheCategorias[modulo];
+        }
+
+        const categorias = await obtenerTodasCategorias(modulo);
+
+        if (categorias.length === 0) {
+            // No hay categorías, usar default
+            return CATEGORIAS_DEFAULT[modulo];
+        }
+
+        // Organizar categorías por tipo
+        const organizadas = {
+            ingresos: {},
+            egresos: {}
+        };
+
+        for (const cat of categorias) {
+            if (cat.activa === false) continue;
+
+            if (cat.tipo === 'ingreso') {
+                const persona = cat.persona || 'otro';
+                if (!organizadas.ingresos[persona]) {
+                    organizadas.ingresos[persona] = [];
+                }
+                organizadas.ingresos[persona].push(cat.identificador);
+            } else if (cat.tipo === 'egreso') {
+                const tipoGasto = cat.tipoGasto || 'variable';
+                if (!organizadas.egresos[tipoGasto]) {
+                    organizadas.egresos[tipoGasto] = [];
+                }
+                organizadas.egresos[tipoGasto].push(cat.identificador);
+            }
+        }
+
+        // Actualizar cache
+        _cacheCategorias[modulo] = organizadas;
+        _cacheCategorias.lastUpdate = ahora;
+
+        // Actualizar objeto global CATEGORIAS
+        CATEGORIAS[modulo] = organizadas;
+
+        return organizadas;
+    } catch (error) {
+        console.warn('Error cargando categorías desde DB, usando default:', error);
+        return CATEGORIAS_DEFAULT[modulo];
+    }
+}
+
+// Obtener nombre de categoría (busca primero en DB, luego en constantes)
+async function getNombreCategoriaAsync(modulo, identificador) {
+    try {
+        const categorias = await obtenerTodasCategorias(modulo);
+        const cat = categorias.find(c => c.identificador === identificador);
+        if (cat) {
+            return cat.nombre;
+        }
+    } catch (error) {
+        console.warn('Error obteniendo nombre de categoría:', error);
+    }
+    // Fallback a nombres predefinidos
+    return NOMBRES_CATEGORIAS[identificador] || formatearCategoria(identificador);
+}
 
 // Nombres bonitos para categorías
 const NOMBRES_CATEGORIAS = {

@@ -672,30 +672,65 @@ function abrirFormularioMovimiento(tipo) {
 
 async function actualizarCategoriasIngreso() {
     const select = document.getElementById('mov-categoria');
-    let categorias = [];
 
-    if (moduloActual === 'familia') {
-        const persona = document.getElementById('mov-persona')?.value || 'otro';
-        categorias = CATEGORIAS.familia.ingresos[persona] || [];
-    } else {
-        categorias = CATEGORIAS.neurotea.ingresos.principal || [];
+    try {
+        // Cargar categorías desde la base de datos
+        let categorias = await obtenerCategorias(moduloActual, 'ingreso');
+
+        if (moduloActual === 'familia') {
+            const persona = document.getElementById('mov-persona')?.value || 'otro';
+            // Filtrar por persona
+            categorias = categorias.filter(c => c.persona === persona || c.persona === 'otro' || !c.persona);
+        }
+
+        if (categorias.length === 0) {
+            // Fallback a categorías default si no hay en DB
+            await inicializarCategoriasPredeterminadas(moduloActual);
+            categorias = await obtenerCategorias(moduloActual, 'ingreso');
+            if (moduloActual === 'familia') {
+                const persona = document.getElementById('mov-persona')?.value || 'otro';
+                categorias = categorias.filter(c => c.persona === persona || c.persona === 'otro' || !c.persona);
+            }
+        }
+
+        select.innerHTML = categorias.map(c =>
+            `<option value="${c.identificador}">${c.nombre}</option>`
+        ).join('');
+    } catch (error) {
+        console.error('Error cargando categorías de ingreso:', error);
+        // Fallback a constantes
+        const cats = moduloActual === 'familia'
+            ? (CATEGORIAS_DEFAULT.familia.ingresos[document.getElementById('mov-persona')?.value || 'otro'] || [])
+            : (CATEGORIAS_DEFAULT.neurotea.ingresos.principal || []);
+        select.innerHTML = cats.map(c => `<option value="${c}">${getNombreCategoria(c)}</option>`).join('');
     }
-
-    select.innerHTML = categorias.map(c => `<option value="${c}">${getNombreCategoria(c)}</option>`).join('');
 }
 
 async function actualizarCategoriasEgreso() {
     const select = document.getElementById('mov-categoria');
     const tipoGasto = document.getElementById('mov-tipo-gasto')?.value || 'variable';
 
-    let categorias = [];
-    if (moduloActual === 'familia') {
-        categorias = CATEGORIAS.familia.egresos[tipoGasto] || [];
-    } else {
-        categorias = CATEGORIAS.neurotea.egresos[tipoGasto] || [];
-    }
+    try {
+        // Cargar categorías desde la base de datos
+        let categorias = await obtenerCategorias(moduloActual, 'egreso', tipoGasto);
 
-    select.innerHTML = categorias.map(c => `<option value="${c}">${getNombreCategoria(c)}</option>`).join('');
+        if (categorias.length === 0) {
+            // Fallback a categorías default si no hay en DB
+            await inicializarCategoriasPredeterminadas(moduloActual);
+            categorias = await obtenerCategorias(moduloActual, 'egreso', tipoGasto);
+        }
+
+        select.innerHTML = categorias.map(c =>
+            `<option value="${c.identificador}">${c.nombre}</option>`
+        ).join('');
+    } catch (error) {
+        console.error('Error cargando categorías de egreso:', error);
+        // Fallback a constantes
+        const cats = moduloActual === 'familia'
+            ? (CATEGORIAS_DEFAULT.familia.egresos[tipoGasto] || [])
+            : (CATEGORIAS_DEFAULT.neurotea.egresos[tipoGasto] || []);
+        select.innerHTML = cats.map(c => `<option value="${c}">${getNombreCategoria(c)}</option>`).join('');
+    }
 }
 
 async function cargarCuentasSelect() {
@@ -792,13 +827,13 @@ async function editarMovimiento(tipo, id) {
 }
 
 async function eliminarMovimiento(tipo, id) {
-    const confirmado = await confirmarAccion('Eliminar movimiento', '¿Está seguro de eliminar este movimiento?');
+    const confirmado = await confirmarAccion('Eliminar movimiento', '¿Está seguro de eliminar este movimiento?\n\nPodrá restaurarlo desde la papelera en Configuración.');
     if (!confirmado) return;
 
     try {
         const store = tipo === 'ingreso' ? `${moduloActual}_ingresos` : `${moduloActual}_egresos`;
-        await eliminar(store, id);
-        mostrarToast('Movimiento eliminado', 'success');
+        await softDelete(store, id);
+        mostrarToast('Movimiento movido a papelera', 'success');
         cargarSeccion('movimientos');
     } catch (error) {
         mostrarToast('Error al eliminar', 'error');
@@ -998,12 +1033,12 @@ async function eliminarCuentaConf(id) {
         return;
     }
 
-    const confirmado = await confirmarAccion('Eliminar cuenta', '¿Está seguro de eliminar esta cuenta?');
+    const confirmado = await confirmarAccion('Eliminar cuenta', '¿Está seguro de eliminar esta cuenta?\n\nPodrá restaurarla desde la papelera en Configuración.');
     if (!confirmado) return;
 
     try {
-        await eliminar(`${moduloActual}_cuentas`, id);
-        mostrarToast('Cuenta eliminada', 'success');
+        await softDelete(`${moduloActual}_cuentas`, id);
+        mostrarToast('Cuenta movida a papelera', 'success');
         cargarSeccion('cuentas');
     } catch (error) {
         mostrarToast('Error al eliminar', 'error');
@@ -1138,21 +1173,43 @@ async function copiarPresupuestoAnterior() {
 async function editarPresupuesto() {
     const { año, mes } = mesVisualizacion;
     const presupuesto = await obtenerPresupuestoMes(moduloActual, año, mes);
-    const categorias = moduloActual === 'familia' ? CATEGORIAS.familia.egresos : CATEGORIAS.neurotea.egresos;
+
+    // Cargar categorías dinámicamente desde la DB
+    let categoriasDB = await obtenerTodasCategorias(moduloActual, 'egreso');
+
+    if (categoriasDB.length === 0) {
+        await inicializarCategoriasPredeterminadas(moduloActual);
+        categoriasDB = await obtenerTodasCategorias(moduloActual, 'egreso');
+    }
+
+    // Agrupar por tipo de gasto
+    const categoriasPorTipo = {};
+    for (const cat of categoriasDB) {
+        if (cat.activa === false) continue;
+        const tipo = cat.tipoGasto || 'variable';
+        if (!categoriasPorTipo[tipo]) {
+            categoriasPorTipo[tipo] = [];
+        }
+        categoriasPorTipo[tipo].push(cat);
+    }
 
     document.getElementById('modal-form-titulo').textContent = `Presupuesto - ${getNombreMes(mes)} ${año}`;
 
     let html = '<form id="form-presupuesto">';
 
-    for (const [tipoGasto, cats] of Object.entries(categorias)) {
+    const tiposOrden = ['fijo', 'variable', 'mantenimiento', 'ocio'];
+    for (const tipoGasto of tiposOrden) {
+        const cats = categoriasPorTipo[tipoGasto] || [];
+        if (cats.length === 0) continue;
+
         html += `<h4 class="form-section-title">${TIPOS_GASTO[tipoGasto]?.nombre || capitalizar(tipoGasto)}</h4><div class="form-row">`;
 
         for (const cat of cats) {
-            const valorActual = presupuesto?.limites?.[tipoGasto]?.[cat] || '';
+            const valorActual = presupuesto?.limites?.[tipoGasto]?.[cat.identificador] || '';
             html += `
                 <div class="form-group">
-                    <label>${getNombreCategoria(cat)}</label>
-                    <input type="number" class="form-control" name="pres_${tipoGasto}_${cat}" value="${valorActual}" min="0" placeholder="0">
+                    <label>${cat.nombre}</label>
+                    <input type="number" class="form-control" name="pres_${tipoGasto}_${cat.identificador}" value="${valorActual}" min="0" placeholder="0">
                 </div>
             `;
         }
@@ -1173,14 +1230,26 @@ async function guardarPresupuesto() {
     const form = document.getElementById('form-presupuesto');
     const limites = {};
 
-    const categorias = moduloActual === 'familia' ? CATEGORIAS.familia.egresos : CATEGORIAS.neurotea.egresos;
+    // Cargar categorías dinámicamente desde la DB
+    let categoriasDB = await obtenerTodasCategorias(moduloActual, 'egreso');
 
-    for (const [tipoGasto, cats] of Object.entries(categorias)) {
+    // Agrupar por tipo de gasto
+    const categoriasPorTipo = {};
+    for (const cat of categoriasDB) {
+        if (cat.activa === false) continue;
+        const tipo = cat.tipoGasto || 'variable';
+        if (!categoriasPorTipo[tipo]) {
+            categoriasPorTipo[tipo] = [];
+        }
+        categoriasPorTipo[tipo].push(cat);
+    }
+
+    for (const [tipoGasto, cats] of Object.entries(categoriasPorTipo)) {
         limites[tipoGasto] = {};
         for (const cat of cats) {
-            const input = form.querySelector(`[name="pres_${tipoGasto}_${cat}"]`);
+            const input = form.querySelector(`[name="pres_${tipoGasto}_${cat.identificador}"]`);
             if (input && parseInt(input.value) > 0) {
-                limites[tipoGasto][cat] = parseInt(input.value);
+                limites[tipoGasto][cat.identificador] = parseInt(input.value);
             }
         }
     }
@@ -1419,14 +1488,14 @@ async function ejecutarPagoPrestamo() {
 }
 
 async function eliminarPrestamoConf(id) {
-    const confirmado = await confirmarAccion('Eliminar préstamo', 'Se eliminarán también todos los pagos asociados. ¿Continuar?');
+    const confirmado = await confirmarAccion('Eliminar préstamo', 'Se moverán a la papelera el préstamo y los pagos asociados. ¿Continuar?\n\nPodrá restaurarlos desde Configuración > Papelera.');
     if (!confirmado) return;
 
     try {
         const egresos = await obtenerPorIndice('familia_egresos', 'prestamoId', id);
-        for (const e of egresos) await eliminar('familia_egresos', e.id);
-        await eliminar('familia_prestamos', id);
-        mostrarToast('Préstamo eliminado', 'success');
+        for (const e of egresos) await softDelete('familia_egresos', e.id);
+        await softDelete('familia_prestamos', id);
+        mostrarToast('Préstamo movido a papelera', 'success');
         cargarSeccion('prestamos');
     } catch (error) {
         mostrarToast('Error al eliminar', 'error');
@@ -1624,12 +1693,12 @@ async function ejecutarAporte() {
 }
 
 async function eliminarMetaConf(id) {
-    const confirmado = await confirmarAccion('Eliminar meta', '¿Está seguro de eliminar esta meta?');
+    const confirmado = await confirmarAccion('Eliminar meta', '¿Está seguro de eliminar esta meta?\n\nPodrá restaurarla desde Configuración > Papelera.');
     if (!confirmado) return;
 
     try {
-        await eliminar('familia_metas', id);
-        mostrarToast('Meta eliminada', 'success');
+        await softDelete('familia_metas', id);
+        mostrarToast('Meta movida a papelera', 'success');
         cargarSeccion('metas');
     } catch (error) {
         mostrarToast('Error al eliminar', 'error');
@@ -1890,40 +1959,642 @@ async function exportarReporteCSV() {
 // CONFIGURACIÓN
 // ==========================================
 
-function renderConfiguracion(contenedor) {
+async function renderConfiguracion(contenedor) {
+    // Cargar papelera para mostrar contador
+    const papelera = await obtenerPapelera(moduloActual);
+
     contenedor.innerHTML = `
-        <div class="card">
-            <div class="card-header">
-                <span class="card-title">Exportar Datos</span>
+        <!-- Tabs de configuración -->
+        <div class="tabs mb-3">
+            <button class="tab active" onclick="mostrarTabConfig('general')">General</button>
+            <button class="tab" onclick="mostrarTabConfig('categorias')">Categorías</button>
+            <button class="tab" onclick="mostrarTabConfig('papelera')">Papelera ${papelera.length > 0 ? `<span class="badge badge-pendiente">${papelera.length}</span>` : ''}</button>
+        </div>
+
+        <div id="tab-content-general">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Exportar Datos</span>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-2">Exporte los datos de este módulo a un archivo JSON.</p>
+                    <button class="btn btn-primary" onclick="exportarModuloJSON()">Exportar ${moduloActual === 'familia' ? 'Familia' : 'NeuroTEA'}</button>
+                </div>
             </div>
-            <div class="card-body">
-                <p class="text-muted mb-2">Exporte los datos de este módulo a un archivo JSON.</p>
-                <button class="btn btn-primary" onclick="exportarModuloJSON()">Exportar ${moduloActual === 'familia' ? 'Familia' : 'NeuroTEA'}</button>
+
+            <div class="card mt-3">
+                <div class="card-header">
+                    <span class="card-title">Verificar Integridad</span>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-2">Verifica que todos los datos estén correctamente relacionados.</p>
+                    <button class="btn btn-secondary" onclick="verificarIntegridadModulo()">Ejecutar Verificación</button>
+                    <div id="resultado-integridad" class="mt-2"></div>
+                </div>
             </div>
         </div>
 
-        <div class="card mt-3">
-            <div class="card-header">
-                <span class="card-title">Verificar Integridad</span>
+        <div id="tab-content-categorias" class="hidden">
+            <!-- Se carga dinámicamente -->
+        </div>
+
+        <div id="tab-content-papelera" class="hidden">
+            <!-- Se carga dinámicamente -->
+        </div>
+    `;
+
+    // Cargar contenido de categorías
+    await renderCategoriasConfig();
+    renderPapeleraConfig(papelera);
+}
+
+function mostrarTabConfig(tab) {
+    // Actualizar tabs activos
+    document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+
+    // Mostrar contenido correspondiente
+    document.getElementById('tab-content-general').classList.add('hidden');
+    document.getElementById('tab-content-categorias').classList.add('hidden');
+    document.getElementById('tab-content-papelera').classList.add('hidden');
+    document.getElementById(`tab-content-${tab}`).classList.remove('hidden');
+}
+
+// ==========================================
+// GESTIÓN DE CATEGORÍAS
+// ==========================================
+
+async function renderCategoriasConfig() {
+    const contenedor = document.getElementById('tab-content-categorias');
+
+    // Obtener categorías de la DB
+    let categorias = await obtenerTodasCategorias(moduloActual);
+
+    // Si no hay categorías, inicializar las predeterminadas
+    if (categorias.length === 0) {
+        await inicializarCategoriasPredeterminadas(moduloActual);
+        categorias = await obtenerTodasCategorias(moduloActual);
+        invalidarCacheCategorias(moduloActual);
+    }
+
+    const categoriasEgreso = categorias.filter(c => c.tipo === 'egreso');
+    const categoriasIngreso = categorias.filter(c => c.tipo === 'ingreso');
+
+    let html = `
+        <div class="alert alert-info mb-3">
+            <div class="alert-icon">ℹ</div>
+            <div class="alert-content">
+                Las categorías que agregue aquí estarán disponibles en formularios, presupuesto, reportes y gráficas.
+                Las categorías del sistema no se pueden eliminar, pero puede desactivarlas.
             </div>
-            <div class="card-body">
-                <p class="text-muted mb-2">Verifica que todos los datos estén correctamente relacionados.</p>
-                <button class="btn btn-secondary" onclick="verificarIntegridadModulo()">Ejecutar Verificación</button>
-                <div id="resultado-integridad" class="mt-2"></div>
+        </div>
+
+        <!-- Categorías de Egresos -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <span class="card-title">Categorías de Egresos</span>
+                <button class="btn btn-sm btn-primary" onclick="abrirFormularioCategoria('egreso')">+ Nueva Categoría</button>
+            </div>
+            <div class="card-body no-padding">
+    `;
+
+    // Agrupar por tipo de gasto
+    const tiposGasto = ['fijo', 'variable', 'mantenimiento', 'ocio'];
+    for (const tipoGasto of tiposGasto) {
+        const catsDelTipo = categoriasEgreso.filter(c => c.tipoGasto === tipoGasto);
+        if (catsDelTipo.length === 0) continue;
+
+        html += `
+            <div class="panel">
+                <div class="panel-header" onclick="togglePanel(this.parentElement)">
+                    <div class="panel-title">
+                        <span>${TIPOS_GASTO[tipoGasto]?.icono || ''}</span>
+                        ${TIPOS_GASTO[tipoGasto]?.nombre || capitalizar(tipoGasto)}
+                        <span class="badge badge-ingreso">${catsDelTipo.length}</span>
+                    </div>
+                    <div class="panel-toggle">▼</div>
+                </div>
+                <div class="panel-body">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Identificador</th>
+                                <th>Estado</th>
+                                <th class="text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        `;
+
+        for (const cat of catsDelTipo) {
+            html += `
+                <tr>
+                    <td>
+                        ${cat.icono ? cat.icono + ' ' : ''}
+                        <strong>${cat.nombre}</strong>
+                        ${cat.sistema ? '<span class="badge badge-pagado">Sistema</span>' : ''}
+                    </td>
+                    <td class="text-muted">${cat.identificador}</td>
+                    <td>
+                        <span class="badge ${cat.activa !== false ? 'badge-activo' : 'badge-pagado'}">
+                            ${cat.activa !== false ? 'Activa' : 'Inactiva'}
+                        </span>
+                    </td>
+                    <td class="text-right acciones">
+                        <button class="btn btn-icon btn-sm btn-outline" onclick="editarCategoriaUI('${cat.id}')" title="Editar">✎</button>
+                        ${!cat.sistema ? `<button class="btn btn-icon btn-sm btn-outline" onclick="eliminarCategoriaUI('${cat.id}')" title="Eliminar">✕</button>` : ''}
+                    </td>
+                </tr>
+            `;
+        }
+
+        html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    html += `
+            </div>
+        </div>
+
+        <!-- Categorías de Ingresos -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Categorías de Ingresos</span>
+                <button class="btn btn-sm btn-primary" onclick="abrirFormularioCategoria('ingreso')">+ Nueva Categoría</button>
+            </div>
+            <div class="card-body no-padding">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Identificador</th>
+                            ${moduloActual === 'familia' ? '<th>Persona</th>' : ''}
+                            <th>Estado</th>
+                            <th class="text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    `;
+
+    for (const cat of categoriasIngreso) {
+        html += `
+            <tr>
+                <td>
+                    ${cat.icono ? cat.icono + ' ' : ''}
+                    <strong>${cat.nombre}</strong>
+                    ${cat.sistema ? '<span class="badge badge-pagado">Sistema</span>' : ''}
+                </td>
+                <td class="text-muted">${cat.identificador}</td>
+                ${moduloActual === 'familia' ? `<td>${capitalizar(cat.persona || 'otro')}</td>` : ''}
+                <td>
+                    <span class="badge ${cat.activa !== false ? 'badge-activo' : 'badge-pagado'}">
+                        ${cat.activa !== false ? 'Activa' : 'Inactiva'}
+                    </span>
+                </td>
+                <td class="text-right acciones">
+                    <button class="btn btn-icon btn-sm btn-outline" onclick="editarCategoriaUI('${cat.id}')" title="Editar">✎</button>
+                    ${!cat.sistema ? `<button class="btn btn-icon btn-sm btn-outline" onclick="eliminarCategoriaUI('${cat.id}')" title="Eliminar">✕</button>` : ''}
+                </td>
+            </tr>
+        `;
+    }
+
+    html += `
+                    </tbody>
+                </table>
             </div>
         </div>
     `;
+
+    contenedor.innerHTML = html;
+}
+
+function togglePanel(panel) {
+    panel.classList.toggle('collapsed');
+}
+
+function abrirFormularioCategoria(tipo, categoriaId = null) {
+    document.getElementById('modal-form-titulo').textContent = categoriaId ? 'Editar Categoría' : 'Nueva Categoría';
+
+    let tipoGastoSelect = '';
+    let personaSelect = '';
+
+    if (tipo === 'egreso') {
+        tipoGastoSelect = `
+            <div class="form-group">
+                <label>Tipo de Gasto <span class="required">*</span></label>
+                <select class="form-control" id="cat-tipo-gasto">
+                    <option value="fijo">Fijo</option>
+                    <option value="variable">Variable</option>
+                    <option value="mantenimiento">Mantenimiento</option>
+                    <option value="ocio">Ocio/Entretenimiento</option>
+                </select>
+            </div>
+        `;
+    } else if (moduloActual === 'familia') {
+        personaSelect = `
+            <div class="form-group">
+                <label>Persona</label>
+                <select class="form-control" id="cat-persona">
+                    <option value="marco">Marco</option>
+                    <option value="clara">Clara</option>
+                    <option value="otro">Otro</option>
+                </select>
+            </div>
+        `;
+    }
+
+    const html = `
+        <form id="form-categoria">
+            <input type="hidden" id="cat-id" value="${categoriaId || ''}">
+            <input type="hidden" id="cat-tipo" value="${tipo}">
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Nombre <span class="required">*</span></label>
+                    <input type="text" class="form-control" id="cat-nombre" required placeholder="Ej: Servicios Streaming">
+                </div>
+                ${tipoGastoSelect}
+                ${personaSelect}
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Icono (emoji)</label>
+                    <input type="text" class="form-control" id="cat-icono" placeholder="Ej: 🎬" maxlength="4">
+                </div>
+                <div class="form-group">
+                    <label>Color</label>
+                    <input type="color" class="form-control" id="cat-color" value="#6b7280" style="height: 42px;">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="cat-activa" checked>
+                    Categoría activa
+                </label>
+            </div>
+        </form>
+    `;
+
+    document.getElementById('modal-form-contenido').innerHTML = html;
+    document.getElementById('modal-form-guardar').onclick = guardarCategoriaUI;
+
+    abrirModal('modal-formulario');
+}
+
+async function editarCategoriaUI(id) {
+    const cat = await obtenerPorId(`${moduloActual}_categorias`, id);
+    if (!cat) return;
+
+    abrirFormularioCategoria(cat.tipo, id);
+
+    setTimeout(() => {
+        document.getElementById('cat-nombre').value = cat.nombre;
+        document.getElementById('cat-icono').value = cat.icono || '';
+        document.getElementById('cat-color').value = cat.color || '#6b7280';
+        document.getElementById('cat-activa').checked = cat.activa !== false;
+
+        if (cat.tipo === 'egreso' && document.getElementById('cat-tipo-gasto')) {
+            document.getElementById('cat-tipo-gasto').value = cat.tipoGasto || 'variable';
+        }
+        if (cat.tipo === 'ingreso' && document.getElementById('cat-persona')) {
+            document.getElementById('cat-persona').value = cat.persona || 'otro';
+        }
+    }, 50);
+}
+
+async function guardarCategoriaUI() {
+    const id = document.getElementById('cat-id').value;
+    const tipo = document.getElementById('cat-tipo').value;
+    const nombre = document.getElementById('cat-nombre').value.trim();
+    const icono = document.getElementById('cat-icono').value.trim();
+    const color = document.getElementById('cat-color').value;
+    const activa = document.getElementById('cat-activa').checked;
+
+    if (!nombre) {
+        mostrarToast('El nombre es requerido', 'error');
+        return;
+    }
+
+    try {
+        if (id) {
+            // Actualizar
+            await actualizarCategoria(moduloActual, id, { nombre, icono, color, activa });
+            mostrarToast('Categoría actualizada', 'exito');
+        } else {
+            // Crear nueva
+            const datos = {
+                tipo,
+                nombre,
+                icono: icono || null,
+                color: color || null
+            };
+
+            if (tipo === 'egreso') {
+                datos.tipoGasto = document.getElementById('cat-tipo-gasto').value;
+            } else if (moduloActual === 'familia') {
+                datos.persona = document.getElementById('cat-persona')?.value || 'otro';
+            }
+
+            await crearCategoria(moduloActual, datos);
+            mostrarToast('Categoría creada', 'exito');
+        }
+
+        // Invalidar cache y recargar
+        invalidarCacheCategorias(moduloActual);
+        cerrarModal('modal-formulario');
+        await renderCategoriasConfig();
+    } catch (error) {
+        mostrarToast(error.message || 'Error al guardar', 'error');
+    }
+}
+
+async function eliminarCategoriaUI(id) {
+    const resultado = await eliminarCategoria(moduloActual, id);
+
+    if (resultado.tieneReferencias) {
+        const reasignar = await confirmarAccion(
+            'Categoría en uso',
+            `${resultado.mensaje}\n\n¿Desea reasignar los movimientos a otra categoría?`
+        );
+
+        if (reasignar) {
+            mostrarDialogoReasignar(id);
+        }
+        return;
+    }
+
+    if (resultado.exito) {
+        mostrarToast('Categoría movida a papelera', 'exito');
+        invalidarCacheCategorias(moduloActual);
+        await renderCategoriasConfig();
+        // Actualizar papelera
+        const papelera = await obtenerPapelera(moduloActual);
+        renderPapeleraConfig(papelera);
+    }
+}
+
+async function mostrarDialogoReasignar(categoriaOrigenId) {
+    const origen = await obtenerPorId(`${moduloActual}_categorias`, categoriaOrigenId);
+    if (!origen) return;
+
+    // Obtener otras categorías del mismo tipo
+    const todas = await obtenerTodasCategorias(moduloActual, origen.tipo);
+    const otras = todas.filter(c => c.id !== categoriaOrigenId && c.activa !== false);
+
+    if (otras.length === 0) {
+        mostrarToast('No hay otras categorías disponibles para reasignar', 'error');
+        return;
+    }
+
+    document.getElementById('modal-form-titulo').textContent = 'Reasignar Movimientos';
+
+    let html = `
+        <form id="form-reasignar">
+            <input type="hidden" id="reasignar-origen" value="${categoriaOrigenId}">
+
+            <div class="alert alert-warning mb-2">
+                <div class="alert-icon">⚠</div>
+                <div class="alert-content">
+                    Los movimientos de <strong>${origen.nombre}</strong> serán reasignados a la categoría seleccionada.
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Reasignar a <span class="required">*</span></label>
+                <select class="form-control" id="reasignar-destino">
+    `;
+
+    for (const cat of otras) {
+        html += `<option value="${cat.id}">${cat.nombre}</option>`;
+    }
+
+    html += `
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="reasignar-eliminar" checked>
+                    Eliminar categoría original después de reasignar
+                </label>
+            </div>
+        </form>
+    `;
+
+    document.getElementById('modal-form-contenido').innerHTML = html;
+    document.getElementById('modal-form-guardar').onclick = ejecutarReasignacion;
+    abrirModal('modal-formulario');
+}
+
+async function ejecutarReasignacion() {
+    const origenId = document.getElementById('reasignar-origen').value;
+    const destinoId = document.getElementById('reasignar-destino').value;
+    const eliminarDespues = document.getElementById('reasignar-eliminar').checked;
+
+    try {
+        const resultado = await reasignarCategoria(moduloActual, origenId, destinoId);
+        mostrarToast(`${resultado.actualizados} movimiento(s) reasignado(s)`, 'exito');
+
+        if (eliminarDespues) {
+            await softDelete(`${moduloActual}_categorias`, origenId);
+            mostrarToast('Categoría eliminada', 'exito');
+        }
+
+        invalidarCacheCategorias(moduloActual);
+        cerrarModal('modal-formulario');
+        await renderCategoriasConfig();
+    } catch (error) {
+        mostrarToast(error.message || 'Error al reasignar', 'error');
+    }
+}
+
+// ==========================================
+// PAPELERA
+// ==========================================
+
+function renderPapeleraConfig(papelera) {
+    const contenedor = document.getElementById('tab-content-papelera');
+
+    if (papelera.length === 0) {
+        contenedor.innerHTML = `
+            <div class="card">
+                <div class="card-body">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🗑️</div>
+                        <h3>Papelera vacía</h3>
+                        <p>Los elementos eliminados aparecerán aquí por 30 días antes de ser eliminados permanentemente.</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    let html = `
+        <div class="alert alert-info mb-3">
+            <div class="alert-icon">ℹ</div>
+            <div class="alert-content">
+                Los elementos en la papelera se eliminan automáticamente después de 30 días.
+                Puede restaurarlos o eliminarlos permanentemente.
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Elementos Eliminados (${papelera.length})</span>
+                <button class="btn btn-sm btn-danger" onclick="vaciarPapeleraUI()">Vaciar Papelera</button>
+            </div>
+            <div class="card-body no-padding">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Descripción</th>
+                            <th>Eliminado</th>
+                            <th>Expira</th>
+                            <th class="text-right">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    `;
+
+    const tiposNombres = {
+        ingresos: 'Ingreso',
+        egresos: 'Egreso',
+        cuentas: 'Cuenta',
+        categorias: 'Categoría',
+        prestamos: 'Préstamo',
+        metas: 'Meta'
+    };
+
+    for (const item of papelera) {
+        const descripcion = item.data.nombre || item.data.descripcion ||
+            item.data.categoria || `${item.tipo} #${item.originalId.substring(0,8)}`;
+
+        const diasRestantes = Math.ceil((new Date(item.expiresAt) - new Date()) / (1000*60*60*24));
+
+        html += `
+            <tr>
+                <td><span class="badge badge-egreso">${tiposNombres[item.tipo] || item.tipo}</span></td>
+                <td>
+                    <strong>${descripcion}</strong>
+                    ${item.data.monto ? `<br><span class="text-muted">${formatearMoneda(item.data.monto)}</span>` : ''}
+                </td>
+                <td class="text-muted">${formatearFecha(item.deletedAt.split('T')[0])}</td>
+                <td>
+                    <span class="badge ${diasRestantes <= 7 ? 'badge-atrasado' : 'badge-pendiente'}">
+                        ${diasRestantes} día(s)
+                    </span>
+                </td>
+                <td class="text-right acciones">
+                    <button class="btn btn-sm btn-success" onclick="restaurarElementoUI('${item.id}')" title="Restaurar">↩ Restaurar</button>
+                    <button class="btn btn-sm btn-danger" onclick="eliminarPermanenteUI('${item.id}')" title="Eliminar permanente">✕</button>
+                </td>
+            </tr>
+        `;
+    }
+
+    html += `
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+
+    contenedor.innerHTML = html;
+}
+
+async function restaurarElementoUI(papeleraId) {
+    try {
+        const resultado = await restaurarDesdePapelera(moduloActual, papeleraId);
+        mostrarToast('Elemento restaurado correctamente', 'exito');
+
+        // Si era una categoría, invalidar cache
+        if (resultado.storeName.includes('categorias')) {
+            invalidarCacheCategorias(moduloActual);
+        }
+
+        // Recargar papelera
+        const papelera = await obtenerPapelera(moduloActual);
+        renderPapeleraConfig(papelera);
+
+        // Actualizar badge
+        actualizarBadgePapelera(papelera.length);
+    } catch (error) {
+        mostrarToast(error.message || 'Error al restaurar', 'error');
+    }
+}
+
+async function eliminarPermanenteUI(papeleraId) {
+    const confirmado = await confirmarAccion(
+        'Eliminar permanentemente',
+        'Esta acción no se puede deshacer. ¿Está seguro?'
+    );
+
+    if (!confirmado) return;
+
+    try {
+        await eliminarPermanente(moduloActual, papeleraId);
+        mostrarToast('Elemento eliminado permanentemente', 'exito');
+
+        const papelera = await obtenerPapelera(moduloActual);
+        renderPapeleraConfig(papelera);
+        actualizarBadgePapelera(papelera.length);
+    } catch (error) {
+        mostrarToast(error.message || 'Error al eliminar', 'error');
+    }
+}
+
+async function vaciarPapeleraUI() {
+    const confirmado = await confirmarAccion(
+        'Vaciar papelera',
+        'Se eliminarán permanentemente TODOS los elementos. Esta acción no se puede deshacer.'
+    );
+
+    if (!confirmado) return;
+
+    try {
+        await vaciarPapelera(moduloActual);
+        mostrarToast('Papelera vaciada', 'exito');
+        renderPapeleraConfig([]);
+        actualizarBadgePapelera(0);
+    } catch (error) {
+        mostrarToast(error.message || 'Error al vaciar', 'error');
+    }
+}
+
+function actualizarBadgePapelera(cantidad) {
+    const tabs = document.querySelectorAll('.tabs .tab');
+    tabs.forEach(tab => {
+        if (tab.textContent.includes('Papelera')) {
+            if (cantidad > 0) {
+                tab.innerHTML = `Papelera <span class="badge badge-pendiente">${cantidad}</span>`;
+            } else {
+                tab.textContent = 'Papelera';
+            }
+        }
+    });
 }
 
 async function exportarModuloJSON() {
     const datos = {
-        version: '2.0',
+        version: '2.1',
         modulo: moduloActual,
         fechaExportacion: new Date().toISOString(),
         ingresos: await obtenerTodos(`${moduloActual}_ingresos`),
         egresos: await obtenerTodos(`${moduloActual}_egresos`),
         cuentas: await obtenerTodos(`${moduloActual}_cuentas`),
-        presupuesto: await obtenerTodos(`${moduloActual}_presupuesto`)
+        presupuesto: await obtenerTodos(`${moduloActual}_presupuesto`),
+        categorias: await obtenerTodos(`${moduloActual}_categorias`),
+        papelera: await obtenerTodos(`${moduloActual}_papelera`)
     };
 
     if (moduloActual === 'familia') {
