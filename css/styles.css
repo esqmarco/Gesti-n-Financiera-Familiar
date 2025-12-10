@@ -1398,3 +1398,186 @@ textarea.form-control {
         display: none;
     }
 }
+
+/* ==========================================
+   TABS
+   ========================================== */
+
+.tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 2px solid var(--borde);
+    padding-bottom: 0;
+    overflow-x: auto;
+}
+
+.tab {
+    padding: 10px 20px;
+    border: none;
+    background: transparent;
+    color: var(--gris-600);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tab:hover {
+    color: var(--primario);
+    background: var(--gris-50);
+}
+
+.tab.active {
+    color: var(--primario);
+    border-bottom-color: var(--primario);
+}
+
+.tab .badge {
+    font-size: 11px;
+    padding: 2px 6px;
+}
+
+/* ==========================================
+   PANELES COLAPSABLES
+   ========================================== */
+
+.panel {
+    border: 1px solid var(--borde);
+    border-radius: var(--radio);
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+
+.panel:last-child {
+    margin-bottom: 0;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--gris-50);
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s;
+}
+
+.panel-header:hover {
+    background: var(--gris-100);
+}
+
+.panel-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: var(--gris-800);
+}
+
+.panel-toggle {
+    color: var(--gris-500);
+    transition: transform 0.2s;
+}
+
+.panel.collapsed .panel-toggle {
+    transform: rotate(-90deg);
+}
+
+.panel-body {
+    border-top: 1px solid var(--borde);
+    max-height: 2000px;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.panel.collapsed .panel-body {
+    max-height: 0;
+    border-top: none;
+}
+
+.panel-body .table {
+    margin: 0;
+}
+
+.panel-body .table th:first-child,
+.panel-body .table td:first-child {
+    padding-left: 16px;
+}
+
+/* ==========================================
+   ALERTAS MEJORADAS
+   ========================================== */
+
+.alert {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radio);
+    font-size: 14px;
+}
+
+.alert-icon {
+    flex-shrink: 0;
+    font-size: 18px;
+}
+
+.alert-content {
+    flex: 1;
+}
+
+.alert-info {
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    color: #1E40AF;
+}
+
+.alert-warning {
+    background: #FFFBEB;
+    border: 1px solid #FDE68A;
+    color: #92400E;
+}
+
+.alert-success {
+    background: #ECFDF5;
+    border: 1px solid #A7F3D0;
+    color: #065F46;
+}
+
+.alert-error {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    color: #991B1B;
+}
+
+/* ==========================================
+   MEJORAS DE BADGES
+   ========================================== */
+
+.badge-pagado {
+    background: var(--gris-200);
+    color: var(--gris-600);
+}
+
+/* ==========================================
+   FORM SECTION TITLE
+   ========================================== */
+
+.form-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--gris-700);
+    margin: 20px 0 12px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--borde);
+}
+
+.form-section-title:first-child {
+    margin-top: 0;
+}
