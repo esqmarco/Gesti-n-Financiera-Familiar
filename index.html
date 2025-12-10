@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor Financiero</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- ========================================
+         PANTALLA DE INICIO - SELECTOR DE MÓDULOS
+         ======================================== -->
+    <div id="pantalla-inicio" class="pantalla-inicio">
+        <header class="header-inicio">
+            <h1>Gestor Financiero</h1>
+            <p class="subtitulo">Sistema de Gestión Financiera Personal y Empresarial</p>
+        </header>
+
+        <main class="selector-modulos">
+            <!-- Módulo FAMILIA -->
+            <div class="modulo-card familia" onclick="abrirModulo('familia')">
+                <div class="modulo-card-header">
+                    <div class="modulo-icono">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <polyline points="9,22 9,12 15,12 15,22"></polyline>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2>FAMILIA</h2>
+                        <p>Finanzas del hogar</p>
+                    </div>
+                </div>
+                <div class="modulo-card-body">
+                    <div class="modulo-stats">
+                        <div class="stat-item">
+                            <div class="stat-label">Ingresos</div>
+                            <div class="stat-value positivo" id="familia-ingresos-preview">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Egresos</div>
+                            <div class="stat-value negativo" id="familia-egresos-preview">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Balance</div>
+                            <div class="stat-value" id="familia-balance-preview">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Cuentas</div>
+                            <div class="stat-value" id="familia-cuentas-preview">-</div>
+                        </div>
+                    </div>
+                    <button class="btn-ingresar">Ingresar al Sistema</button>
+                </div>
+            </div>
+
+            <!-- Módulo NEUROTEA -->
+            <div class="modulo-card neurotea" onclick="abrirModulo('neurotea')">
+                <div class="modulo-card-header">
+                    <div class="modulo-icono">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h2>NEUROTEA</h2>
+                        <p>Clínica de Neurorehabilitación</p>
+                    </div>
+                </div>
+                <div class="modulo-card-body">
+                    <div class="modulo-stats">
+                        <div class="stat-item">
+                            <div class="stat-label">Ingresos</div>
+                            <div class="stat-value positivo" id="neurotea-ingresos-preview">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Egresos</div>
+                            <div class="stat-value negativo" id="neurotea-egresos-preview">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Balance</div>
+                            <div class="stat-value" id="neurotea-balance-preview">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Cuentas</div>
+                            <div class="stat-value" id="neurotea-cuentas-preview">-</div>
+                        </div>
+                    </div>
+                    <button class="btn-ingresar">Ingresar al Sistema</button>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer-inicio">
+            <button class="btn-footer" onclick="abrirConfigGlobal()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+                Configuración
+            </button>
+            <button class="btn-footer" onclick="exportarTodoJSON()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7,10 12,15 17,10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Crear Respaldo
+            </button>
+            <div id="alerta-respaldo" class="alerta-respaldo hidden">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+                <span id="mensaje-respaldo"></span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- ========================================
+         MÓDULO PRINCIPAL (FAMILIA / NEUROTEA)
+         ======================================== -->
+    <div id="app-modulo" class="app-container hidden">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="sidebar familia">
+            <div class="sidebar-header">
+                <div class="sidebar-brand">
+                    <div class="sidebar-brand-icon" id="sidebar-icon"></div>
+                    <div>
+                        <h1 id="sidebar-titulo">FAMILIA</h1>
+                        <span id="sidebar-subtitulo">Finanzas del hogar</span>
+                    </div>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Principal</div>
+                    <button class="nav-item active" data-seccion="dashboard" onclick="cambiarSeccion('dashboard')">
+                        <span class="nav-item-icon">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <rect x="3" y="3" width="7" height="7"></rect>
+                                <rect x="14" y="3" width="7" height="7"></rect>
+                                <rect x="14" y="14" width="7" height="7"></rect>
+                                <rect x="3" y="14" width="7" height="7"></rect>
+                            </svg>
+                        </span>
+                        Dashboard
+                    </button>
+                    <button class="nav-item" data-seccion="movimientos" onclick="cambiarSeccion('movimientos')">
+                        <span class="nav-item-icon">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <line x1="12" y1="1" x2="12" y2="23"></line>
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                            </svg>
+                        </span>
+                        Movimientos
+                    </button>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Gestión</div>
+                    <button class="nav-item" data-seccion="presupuesto" onclick="cambiarSeccion('presupuesto')">
+                        <span class="nav-item-icon">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+                                <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+                            </svg>
+                        </span>
+                        Presupuesto
+                    </button>
+                    <button class="nav-item" data-seccion="cuentas" onclick="cambiarSeccion('cuentas')">
+                        <span class="nav-item-icon">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                                <line x1="1" y1="10" x2="23" y2="10"></line>
+                            </svg>
+                        </span>
+                        Cuentas
+                    </button>
+                    <button class="nav-item familia-only" data-seccion="prestamos" onclick="cambiarSeccion('prestamos')">
+                        <span class="nav-item-icon">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                            </svg>
+                        </span>
+                        Préstamos
+                    </button>
+                    <button class="nav-item familia-only" data-seccion="metas" onclick="cambiarSeccion('metas')">
+                        <span class="nav-item-icon">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <circle cx="12" cy="12" r="6"></circle>
+                                <circle cx="12" cy="12" r="2"></circle>
+                            </svg>
+                        </span>
+                        Metas de Ahorro
+                    </button>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Análisis</div>
+                    <button class="nav-item" data-seccion="reportes" onclick="cambiarSeccion('reportes')">
+                        <span class="nav-item-icon">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <line x1="18" y1="20" x2="18" y2="10"></line>
+                                <line x1="12" y1="20" x2="12" y2="4"></line>
+                                <line x1="6" y1="20" x2="6" y2="14"></line>
+                            </svg>
+                        </span>
+                        Reportes
+                    </button>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-section-title">Sistema</div>
+                    <button class="nav-item" data-seccion="configuracion" onclick="cambiarSeccion('configuracion')">
+                        <span class="nav-item-icon">
+                            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                            </svg>
+                        </span>
+                        Configuración
+                    </button>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button class="btn-salir" onclick="salirAlInicio()">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16,17 21,12 16,7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                    Salir
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="main-header">
+                <div class="header-left">
+                    <h2 class="header-title" id="header-titulo">Dashboard</h2>
+                </div>
+                <div class="header-right">
+                    <div class="periodo-selector">
+                        <button onclick="cambiarMes(-1)" title="Mes anterior">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <polyline points="15,18 9,12 15,6"></polyline>
+                            </svg>
+                        </button>
+                        <span id="periodo-actual">Diciembre 2024</span>
+                        <button onclick="cambiarMes(1)" title="Mes siguiente">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <polyline points="9,18 15,12 9,6"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <div class="content-area" id="content-area">
+                <!-- Contenido dinámico -->
+            </div>
+        </main>
+    </div>
+
+    <!-- ========================================
+         MODALES
+         ======================================== -->
+
+    <!-- Modal Configuración Global -->
+    <div id="modal-config" class="modal-overlay hidden">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3 class="modal-title">Configuración del Sistema</h3>
+                <button class="modal-close" onclick="cerrarModal('modal-config')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-section">
+                    <h4 class="form-section-title">Respaldo de Datos</h4>
+                    <p class="text-muted mb-2">Exporte sus datos para mantener una copia de seguridad.</p>
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                        <button class="btn btn-primary" onclick="exportarTodoJSON()">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7,10 12,15 17,10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            Exportar Todo (JSON)
+                        </button>
+                        <button class="btn btn-secondary" onclick="document.getElementById('input-importar').click()">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17,8 12,3 7,8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                            Importar desde JSON
+                        </button>
+                        <input type="file" id="input-importar" accept=".json" class="hidden" onchange="importarDesdeJSON(this.files[0])">
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="form-section">
+                    <h4 class="form-section-title">Información del Sistema</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Versión</label>
+                            <input type="text" class="form-control" value="2.0" disabled>
+                        </div>
+                        <div class="form-group">
+                            <label>Último respaldo</label>
+                            <input type="text" class="form-control" id="info-ultimo-respaldo" value="Nunca" disabled>
+                        </div>
+                        <div class="form-group">
+                            <label>Total de registros</label>
+                            <input type="text" class="form-control" id="info-total-registros" value="0" disabled>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="form-section">
+                    <h4 class="form-section-title" style="color: var(--error);">Zona de Peligro</h4>
+                    <div class="alert alert-warning">
+                        <div class="alert-icon">⚠</div>
+                        <div class="alert-content">
+                            Estas acciones son irreversibles. Asegúrese de tener un respaldo antes de continuar.
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                        <button class="btn btn-outline" onclick="mostrarBorradoSeguro('familia')">Borrar datos FAMILIA</button>
+                        <button class="btn btn-outline" onclick="mostrarBorradoSeguro('neurotea')">Borrar datos NEUROTEA</button>
+                        <button class="btn btn-danger" onclick="mostrarBorradoSeguro('todo')">Borrar TODO</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="cerrarModal('modal-config')">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Borrado Seguro -->
+    <div id="modal-borrado" class="modal-overlay hidden">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h3 class="modal-title">Confirmar Eliminación</h3>
+                <button class="modal-close" onclick="cerrarModal('modal-borrado')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-error mb-2">
+                    <div class="alert-icon">⚠</div>
+                    <div class="alert-content">
+                        <div class="alert-title">Acción irreversible</div>
+                        <span id="mensaje-borrado">Se eliminarán todos los datos.</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Ingrese el código de seguridad:</label>
+                    <input type="password" class="form-control" id="codigo-borrado" placeholder="Código de 6 dígitos" maxlength="6">
+                    <span class="form-hint">Pista: Fecha especial (DDMMAA)</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="cerrarModal('modal-borrado')">Cancelar</button>
+                <button class="btn btn-danger" id="btn-confirmar-borrado">Eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Confirmación -->
+    <div id="modal-confirmacion" class="modal-overlay hidden">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h3 class="modal-title" id="titulo-confirmacion">Confirmar</h3>
+                <button class="modal-close" onclick="cerrarModal('modal-confirmacion')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="mensaje-confirmacion"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="cerrarModal('modal-confirmacion')">Cancelar</button>
+                <button class="btn btn-primary" id="btn-confirmar-accion">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Formulario Genérico -->
+    <div id="modal-formulario" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-form-titulo">Formulario</h3>
+                <button class="modal-close" onclick="cerrarModal('modal-formulario')">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-form-contenido">
+                <!-- Contenido dinámico -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="cerrarModal('modal-formulario')">Cancelar</button>
+                <button class="btn btn-primary" id="modal-form-guardar">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="js/utils.js"></script>
+    <script src="js/database.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
