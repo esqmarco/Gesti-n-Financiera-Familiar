@@ -3959,21 +3959,29 @@ function cambiarAnoPresupuesto(delta) {
 // ==========================================
 
 async function renderDashboardInteligente(contenedor) {
-    const { año, mes } = mesVisualizacion;
-    const resumen = await calcularResumenMes(moduloActual, año, mes);
-    const diasOxigeno = await calcularDiasOxigeno(moduloActual);
-    const liquidez = await calcularLiquidezSemanal(moduloActual);
-    const cuentas = await calcularTodosSaldos(moduloActual);
-    const totalCaja = cuentas.filter(c => c.activa !== false).reduce((s, c) => s + c.saldoActual, 0);
-    const alertas = await obtenerAlertas(moduloActual);
+    try {
+        const { año, mes } = mesVisualizacion;
+        const resumen = await calcularResumenMes(moduloActual, año, mes);
+        const diasOxigeno = await calcularDiasOxigeno(moduloActual);
+        const liquidez = await calcularLiquidezSemanal(moduloActual);
+        const cuentas = await calcularTodosSaldos(moduloActual);
+        const totalCaja = cuentas.filter(c => c.activa !== false).reduce((s, c) => s + c.saldoActual, 0);
+        const alertas = await obtenerAlertas(moduloActual);
 
-    // Obtener préstamos inter-módulo pendientes (FUGA)
-    const prestamosInter = await obtenerPrestamosInterModuloPendientes();
-    const fugaNTaFamilia = prestamosInter.filter(p => p.origen === 'neurotea' && p.destino === 'familia');
-    const totalFuga = fugaNTaFamilia.reduce((s, p) => s + (p.monto - (p.montoDevuelto || 0)), 0);
+        // Obtener préstamos inter-módulo pendientes (FUGA)
+        let prestamosInter = [];
+        let totalFuga = 0;
+        let fugaNTaFamilia = [];
+        try {
+            prestamosInter = await obtenerPrestamosInterModuloPendientes();
+            fugaNTaFamilia = prestamosInter.filter(p => p.origen === 'neurotea' && p.destino === 'familia');
+            totalFuga = fugaNTaFamilia.reduce((s, p) => s + (p.monto - (p.montoDevuelto || 0)), 0);
+        } catch (e) {
+            console.warn('Error obteniendo préstamos inter-módulo:', e);
+        }
 
-    let saludNT = null;
-    if (moduloActual === 'neurotea') saludNT = await calcularSaludNT(año, mes);
+        let saludNT = null;
+        if (moduloActual === 'neurotea') saludNT = await calcularSaludNT(año, mes);
 
     const nivelOx = diasOxigeno.diasOxigeno >= 90 ? 'excelente' : diasOxigeno.diasOxigeno >= 60 ? 'bueno' : diasOxigeno.diasOxigeno >= 30 ? 'alerta' : 'critico';
 
@@ -4056,6 +4064,21 @@ async function renderDashboardInteligente(contenedor) {
 
     contenedor.innerHTML = html;
     if (typeof renderIngresosVsEgresos === 'function') renderIngresosVsEgresos('chart-resumen-mes', resumen.totalIngresos, resumen.totalEgresos);
+    } catch (error) {
+        console.error('Error en renderDashboardInteligente:', error);
+        contenedor.innerHTML = `<div class="error-container">
+            <h3>Error al cargar el Dashboard</h3>
+            <p>Hubo un problema al cargar los datos. Detalles:</p>
+            <pre style="background:#fee;padding:10px;border-radius:4px;overflow:auto;">${error.message}</pre>
+            <p>Posibles soluciones:</p>
+            <ul>
+                <li>Verifica que tengas al menos una cuenta creada en "Cuentas"</li>
+                <li>Recarga la página (F5)</li>
+                <li>Limpia los datos del navegador e intenta de nuevo</li>
+            </ul>
+            <button class="btn btn-primary" onclick="cargarSeccion('cuentas')">Ir a Cuentas</button>
+        </div>`;
+    }
 }
 
 async function obtenerAlertas(modulo) {
