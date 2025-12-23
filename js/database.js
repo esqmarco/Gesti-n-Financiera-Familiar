@@ -1036,74 +1036,121 @@ async function inicializarCategoriasPredeterminadas(modulo) {
         return { mensaje: 'Categorías ya inicializadas', nuevas: 0 };
     }
 
+    // ═══════════════════════════════════════════════════════
+    // CATEGORÍAS EXACTAS DEL EXCEL Control_Financiero_2026_V6
+    // ═══════════════════════════════════════════════════════
+
     const categoriasFamilia = {
         egresos: {
-            fijo: [
-                { nombre: 'Expensas', identificador: 'expensas' },
-                { nombre: 'ANDE (Electricidad)', identificador: 'ande' },
-                { nombre: 'Escuela', identificador: 'escuela' },
-                { nombre: 'Agua (ESSAP)', identificador: 'agua' },
-                { nombre: 'Internet', identificador: 'internet' },
-                { nombre: 'Teléfono', identificador: 'telefono' },
-                { nombre: 'Cuota Préstamo', identificador: 'cuota_prestamo' }
+            gastos_fijos: [
+                { nombre: 'Salario Lili Doméstico', identificador: 'salario_lili' },
+                { nombre: 'Salario Laura Doméstico', identificador: 'salario_laura' },
+                { nombre: 'Escuela Fabián y Brenda', identificador: 'escuela' },
+                { nombre: 'Robótica Niños', identificador: 'robotica' },
+                { nombre: 'ANDE Casa', identificador: 'ande_casa' },
+                { nombre: 'Expensa Casa', identificador: 'expensa_casa' },
+                { nombre: 'Cajubi Marco', identificador: 'cajubi_marco' },
+                { nombre: 'Mutual Marco', identificador: 'mutual_marco' },
+                { nombre: 'Ña Luisa', identificador: 'na_luisa' },
+                { nombre: 'Seguro Médico Papá y Mamá', identificador: 'seguro_medico_papas' }
             ],
-            variable: [
+            cuotas_prestamos: [
+                { nombre: 'Auto Laura Cuota', identificador: 'auto_laura' },
+                { nombre: 'Coop. Universitaria Clara', identificador: 'coop_universitaria' },
+                { nombre: 'Coomecipar Clara', identificador: 'coomecipar_clara' },
+                { nombre: 'Tarjeta Cred. Coomecipar', identificador: 'tarjeta_coomecipar' },
+                { nombre: 'Solar Préstamo 1', identificador: 'solar_1' },
+                { nombre: 'Solar Préstamo 2', identificador: 'solar_2' },
+                { nombre: 'Préstamo Lizzi Sueldos', identificador: 'prestamo_lizzi' },
+                { nombre: 'Show Congelador', identificador: 'show_congelador' },
+                { nombre: 'Olier Heladera', identificador: 'olier_heladera' }
+            ],
+            suscripciones: [
+                { nombre: 'Giganet', identificador: 'giganet' },
+                { nombre: 'Tigo Internet/Celulares', identificador: 'tigo_internet' },
+                { nombre: 'Tigo Familiar', identificador: 'tigo_familiar' },
+                { nombre: 'Google One', identificador: 'google_one' },
+                { nombre: 'ChatGPT', identificador: 'chatgpt' },
+                { nombre: 'Claude Marco', identificador: 'claude_marco' },
+                { nombre: 'Claude Clara', identificador: 'claude_clara' },
+                { nombre: 'iLovePDF', identificador: 'ilovepdf' }
+            ],
+            variables: [
                 { nombre: 'Alimentación', identificador: 'alimentacion' },
-                { nombre: 'Transporte/Combustible', identificador: 'transporte' },
-                { nombre: 'Salud/Farmacia', identificador: 'salud' },
-                { nombre: 'Ropa', identificador: 'ropa' },
-                { nombre: 'Supermercado', identificador: 'supermercado' }
-            ],
-            mantenimiento: [
-                { nombre: 'Casa', identificador: 'casa' },
-                { nombre: 'Vehículo', identificador: 'vehiculo' }
-            ],
-            ocio: [
-                { nombre: 'Restaurantes', identificador: 'restaurantes' },
-                { nombre: 'Viajes', identificador: 'viajes' },
-                { nombre: 'Suscripciones', identificador: 'suscripciones' }
+                { nombre: 'Combustible', identificador: 'combustible' },
+                { nombre: 'Salud y Medicamentos', identificador: 'salud' },
+                { nombre: 'Supermercado', identificador: 'supermercado' },
+                { nombre: 'Farmacia', identificador: 'farmacia' },
+                { nombre: 'Recreación', identificador: 'recreacion' },
+                { nombre: 'Gastos Varios Familia', identificador: 'gastos_varios' }
             ]
         },
         ingresos: {
             marco: [
-                { nombre: 'Salario', identificador: 'salario' },
-                { nombre: 'Vacaciones', identificador: 'vacaciones' },
-                { nombre: 'Aguinaldo', identificador: 'aguinaldo' },
-                { nombre: 'Contrato', identificador: 'contrato' },
-                { nombre: 'Viático', identificador: 'viatico' }
+                { nombre: 'Salario Marco', identificador: 'salario_marco' },
+                { nombre: 'Vacaciones Marco', identificador: 'vacaciones_marco' },
+                { nombre: 'Aguinaldo Marco', identificador: 'aguinaldo_marco' },
+                { nombre: 'Viático Marco', identificador: 'viatico_marco' },
+                { nombre: 'Animador Bíblico', identificador: 'animador_biblico' },
+                { nombre: 'Otros Ingresos Marco', identificador: 'otros_marco' }
             ],
             clara: [
-                { nombre: 'Salario', identificador: 'salario_clara' }
+                { nombre: 'Honorarios Clara', identificador: 'honorarios_clara' }
             ],
-            otro: [
-                { nombre: 'Otros Ingresos', identificador: 'otros_ingresos' }
+            desde_nt: [
+                { nombre: 'Salario Administrador', identificador: 'salario_admin' },
+                { nombre: 'Ganancia NT → Familia', identificador: 'ganancia_nt' },
+                { nombre: 'Préstamo NT (automático)', identificador: 'prestamo_nt' }
             ]
         }
     };
 
     const categoriasNeurotea = {
         egresos: {
-            fijo: [
-                { nombre: 'Alquiler del Local', identificador: 'alquiler' },
-                { nombre: 'Servicios (Luz, Agua, Internet)', identificador: 'servicios' },
-                { nombre: 'Salarios del Personal', identificador: 'salarios' }
+            gastos_fijos: [
+                { nombre: 'Alquiler 1 (Principal)', identificador: 'alquiler_1' },
+                { nombre: 'Alquiler 2 (Secundario)', identificador: 'alquiler_2' },
+                { nombre: 'Limpieza NeuroTEA', identificador: 'limpieza_nt' }
             ],
-            variable: [
-                { nombre: 'Materiales/Insumos', identificador: 'materiales' },
-                { nombre: 'Marketing/Publicidad', identificador: 'marketing' },
-                { nombre: 'Capacitaciones', identificador: 'capacitaciones' }
+            sueldos_honorarios: [
+                { nombre: 'Sueldo Aracely', identificador: 'sueldo_aracely' },
+                { nombre: 'Sueldo Fátima', identificador: 'sueldo_fatima' },
+                { nombre: 'Honorario Contador', identificador: 'honorario_contador' },
+                { nombre: 'Salario Administrador', identificador: 'salario_administrador' },
+                { nombre: 'Honorario Mant. Sistema', identificador: 'honorario_sistema' }
             ],
-            mantenimiento: [
-                { nombre: 'Equipos', identificador: 'equipos' },
-                { nombre: 'Local', identificador: 'local' }
+            telefonia_internet: [
+                { nombre: 'Celular Tigo NeuroTEA', identificador: 'celular_nt' },
+                { nombre: 'Celular Tigo Sistema', identificador: 'celular_sistema' },
+                { nombre: 'WhatsFlow', identificador: 'whatsflow' },
+                { nombre: 'Internet NeuroTEA', identificador: 'internet_nt' }
+            ],
+            impuestos: [
+                { nombre: 'IVA', identificador: 'iva' },
+                { nombre: 'IPS', identificador: 'ips' }
+            ],
+            eventos: [
+                { nombre: 'Día del Niño NT', identificador: 'dia_nino' },
+                { nombre: 'San Juan NT', identificador: 'san_juan' },
+                { nombre: 'Día del Autismo NT', identificador: 'dia_autismo' },
+                { nombre: 'Clausura Padres NT', identificador: 'clausura_padres' },
+                { nombre: 'Navidad Papá Noel NT', identificador: 'navidad' },
+                { nombre: 'Cena Fin de Año NT', identificador: 'cena_fin_ano' }
+            ],
+            variables: [
+                { nombre: 'Insumos NT', identificador: 'insumos_nt' },
+                { nombre: 'Papelería NT', identificador: 'papeleria_nt' },
+                { nombre: 'Mantenimiento NT', identificador: 'mantenimiento_nt' },
+                { nombre: 'Gastos Cursos NT', identificador: 'cursos_nt' },
+                { nombre: 'Gastos Varios NT', identificador: 'gastos_varios_nt' }
             ]
         },
         ingresos: {
             principal: [
-                { nombre: 'Aportes de Terapeutas', identificador: 'aportes_terapeutas' }
-            ],
-            otro: [
-                { nombre: 'Otros Ingresos', identificador: 'otros_ingresos' }
+                { nombre: 'Sesiones Individuales', identificador: 'sesiones_individuales' },
+                { nombre: 'Paquetes de Sesiones', identificador: 'paquetes_sesiones' },
+                { nombre: 'Evaluaciones', identificador: 'evaluaciones' },
+                { nombre: 'Otros Ingresos NT', identificador: 'otros_nt' }
             ]
         }
     };

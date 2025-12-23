@@ -408,78 +408,260 @@ async function getNombreCategoriaAsync(modulo, identificador) {
 
 // Nombres bonitos para categorías
 const NOMBRES_CATEGORIAS = {
-    // Ingresos FAMILIA
-    salario: 'Salario',
-    salario_clara: 'Salario Clara',
-    vacaciones: 'Vacaciones',
-    aguinaldo: 'Aguinaldo',
-    contrato: 'Contrato',
-    viatico: 'Viático',
-    otros_ingresos: 'Otros Ingresos',
+    // ═══════════════════════════════════════════════════════
+    // INGRESOS FAMILIA
+    // ═══════════════════════════════════════════════════════
+    salario_marco: 'Salario Marco',
+    vacaciones_marco: 'Vacaciones Marco',
+    aguinaldo_marco: 'Aguinaldo Marco',
+    viatico_marco: 'Viático Marco',
+    animador_biblico: 'Animador Bíblico',
+    otros_marco: 'Otros Ingresos Marco',
+    honorarios_clara: 'Honorarios Clara',
 
-    // Ingresos NEUROTEA
-    aportes_terapeutas: 'Aportes de Terapeutas',
+    // Desde NeuroTEA
+    salario_admin: 'Salario Administrador',
+    ganancia_nt: 'Ganancia NT → Familia',
+    prestamo_nt: 'Préstamo NT (automático)',
 
-    // Préstamos Inter-Módulo
+    // ═══════════════════════════════════════════════════════
+    // EGRESOS FAMILIA - GASTOS FIJOS
+    // ═══════════════════════════════════════════════════════
+    salario_lili: 'Salario Lili Doméstico',
+    salario_laura: 'Salario Laura Doméstico',
+    escuela: 'Escuela Fabián y Brenda',
+    robotica: 'Robótica Niños',
+    ande_casa: 'ANDE Casa',
+    expensa_casa: 'Expensa Casa',
+    cajubi_marco: 'Cajubi Marco',
+    mutual_marco: 'Mutual Marco',
+    na_luisa: 'Ña Luisa',
+    seguro_medico_papas: 'Seguro Médico Papá y Mamá',
+
+    // ═══════════════════════════════════════════════════════
+    // EGRESOS FAMILIA - CUOTAS Y PRÉSTAMOS
+    // ═══════════════════════════════════════════════════════
+    auto_laura: 'Auto Laura Cuota',
+    coop_universitaria: 'Coop. Universitaria Clara',
+    coomecipar_clara: 'Coomecipar Clara',
+    tarjeta_coomecipar: 'Tarjeta Cred. Coomecipar',
+    solar_1: 'Solar Préstamo 1',
+    solar_2: 'Solar Préstamo 2',
+    prestamo_lizzi: 'Préstamo Lizzi Sueldos',
+    show_congelador: 'Show Congelador',
+    olier_heladera: 'Olier Heladera',
+
+    // ═══════════════════════════════════════════════════════
+    // EGRESOS FAMILIA - SUSCRIPCIONES E INTERNET
+    // ═══════════════════════════════════════════════════════
+    giganet: 'Giganet',
+    tigo_internet: 'Tigo Internet/Celulares',
+    tigo_familiar: 'Tigo Familiar',
+    google_one: 'Google One',
+    chatgpt: 'ChatGPT',
+    claude_marco: 'Claude Marco',
+    claude_clara: 'Claude Clara',
+    ilovepdf: 'iLovePDF',
+
+    // ═══════════════════════════════════════════════════════
+    // EGRESOS FAMILIA - VARIABLES
+    // ═══════════════════════════════════════════════════════
+    alimentacion: 'Alimentación',
+    combustible: 'Combustible',
+    salud: 'Salud y Medicamentos',
+    supermercado: 'Supermercado',
+    farmacia: 'Farmacia',
+    recreacion: 'Recreación',
+    gastos_varios: 'Gastos Varios Familia',
+
+    // ═══════════════════════════════════════════════════════
+    // INGRESOS NEUROTEA
+    // ═══════════════════════════════════════════════════════
+    sesiones_individuales: 'Sesiones Individuales',
+    paquetes_sesiones: 'Paquetes de Sesiones',
+    evaluaciones: 'Evaluaciones',
+    otros_nt: 'Otros Ingresos NT',
+
+    // ═══════════════════════════════════════════════════════
+    // EGRESOS NEUROTEA - GASTOS FIJOS
+    // ═══════════════════════════════════════════════════════
+    alquiler_1: 'Alquiler 1 (Principal)',
+    alquiler_2: 'Alquiler 2 (Secundario)',
+    limpieza_nt: 'Limpieza NeuroTEA',
+
+    // ═══════════════════════════════════════════════════════
+    // EGRESOS NEUROTEA - SUELDOS Y HONORARIOS
+    // ═══════════════════════════════════════════════════════
+    sueldo_aracely: 'Sueldo Aracely',
+    sueldo_fatima: 'Sueldo Fátima',
+    honorario_contador: 'Honorario Contador',
+    salario_administrador: 'Salario Administrador',
+    honorario_sistema: 'Honorario Mant. Sistema',
+
+    // ═══════════════════════════════════════════════════════
+    // EGRESOS NEUROTEA - TELEFONÍA E INTERNET
+    // ═══════════════════════════════════════════════════════
+    celular_nt: 'Celular Tigo NeuroTEA',
+    celular_sistema: 'Celular Tigo Sistema',
+    whatsflow: 'WhatsFlow',
+    internet_nt: 'Internet NeuroTEA',
+
+    // ═══════════════════════════════════════════════════════
+    // EGRESOS NEUROTEA - IMPUESTOS
+    // ═══════════════════════════════════════════════════════
+    iva: 'IVA',
+    ips: 'IPS',
+
+    // ═══════════════════════════════════════════════════════
+    // EGRESOS NEUROTEA - EVENTOS
+    // ═══════════════════════════════════════════════════════
+    dia_nino: 'Día del Niño NT',
+    san_juan: 'San Juan NT',
+    dia_autismo: 'Día del Autismo NT',
+    clausura_padres: 'Clausura Padres NT',
+    navidad: 'Navidad Papá Noel NT',
+    cena_fin_ano: 'Cena Fin de Año NT',
+
+    // ═══════════════════════════════════════════════════════
+    // EGRESOS NEUROTEA - VARIABLES
+    // ═══════════════════════════════════════════════════════
+    insumos_nt: 'Insumos NT',
+    papeleria_nt: 'Papelería NT',
+    mantenimiento_nt: 'Mantenimiento NT',
+    cursos_nt: 'Gastos Cursos NT',
+    gastos_varios_nt: 'Gastos Varios NT',
+
+    // ═══════════════════════════════════════════════════════
+    // PRÉSTAMOS INTER-MÓDULO
+    // ═══════════════════════════════════════════════════════
     prestamo_recibido: 'Préstamo Recibido',
     devolucion_prestamo: 'Devolución de Préstamo',
     prestamo_inter_modulo: 'Préstamo a Módulo',
-    pago_prestamo_inter_modulo: 'Pago Préstamo Inter-Módulo',
-
-    // Egresos Fijos FAMILIA
-    expensas: 'Expensas',
-    ande: 'ANDE (Electricidad)',
-    escuela: 'Escuela',
-    agua: 'Agua (ESSAP)',
-    internet: 'Internet',
-    telefono: 'Teléfono',
-    cuota_prestamo: 'Cuota Préstamo',
-
-    // Egresos Variables FAMILIA
-    alimentacion: 'Alimentación',
-    transporte: 'Transporte/Combustible',
-    salud: 'Salud/Farmacia',
-    ropa: 'Ropa',
-    supermercado: 'Supermercado',
-
-    // Egresos Mantenimiento FAMILIA
-    casa: 'Casa',
-    vehiculo: 'Vehículo',
-
-    // Egresos Ocio FAMILIA
-    restaurantes: 'Restaurantes',
-    viajes: 'Viajes',
-    suscripciones: 'Suscripciones',
-
-    // Egresos Fijos NEUROTEA
-    alquiler: 'Alquiler del Local',
-    servicios: 'Servicios (Luz, Agua, Internet)',
-    salarios: 'Salarios del Personal',
-    ips: 'IPS (Seguro Social)',
-    impuestos: 'Impuestos',
-
-    // Egresos Variables NEUROTEA
-    materiales: 'Materiales/Insumos',
-    marketing: 'Marketing/Publicidad',
-    capacitaciones: 'Capacitaciones',
-    proveedores: 'Proveedores',
-
-    // Egresos Mantenimiento NEUROTEA
-    equipos: 'Equipos',
-    local: 'Local'
+    pago_prestamo_inter_modulo: 'Pago Préstamo Inter-Módulo'
 };
+
+// ═══════════════════════════════════════════════════════
+// ESTRUCTURA DE CATEGORÍAS POR MÓDULO Y GRUPO
+// ═══════════════════════════════════════════════════════
+
+const CATEGORIAS_FAMILIA = {
+    ingresos: {
+        marco: ['salario_marco', 'vacaciones_marco', 'aguinaldo_marco', 'viatico_marco', 'animador_biblico', 'otros_marco'],
+        clara: ['honorarios_clara'],
+        desde_nt: ['salario_admin', 'ganancia_nt', 'prestamo_nt']
+    },
+    egresos: {
+        gastos_fijos: ['salario_lili', 'salario_laura', 'escuela', 'robotica', 'ande_casa', 'expensa_casa', 'cajubi_marco', 'mutual_marco', 'na_luisa', 'seguro_medico_papas'],
+        cuotas_prestamos: ['auto_laura', 'coop_universitaria', 'coomecipar_clara', 'tarjeta_coomecipar', 'solar_1', 'solar_2', 'prestamo_lizzi', 'show_congelador', 'olier_heladera'],
+        suscripciones: ['giganet', 'tigo_internet', 'tigo_familiar', 'google_one', 'chatgpt', 'claude_marco', 'claude_clara', 'ilovepdf'],
+        variables: ['alimentacion', 'combustible', 'salud', 'supermercado', 'farmacia', 'recreacion', 'gastos_varios']
+    }
+};
+
+const CATEGORIAS_NEUROTEA = {
+    ingresos: {
+        principal: ['sesiones_individuales', 'paquetes_sesiones', 'evaluaciones', 'otros_nt']
+    },
+    egresos: {
+        gastos_fijos: ['alquiler_1', 'alquiler_2', 'limpieza_nt'],
+        sueldos_honorarios: ['sueldo_aracely', 'sueldo_fatima', 'honorario_contador', 'salario_administrador', 'honorario_sistema'],
+        telefonia_internet: ['celular_nt', 'celular_sistema', 'whatsflow', 'internet_nt'],
+        impuestos: ['iva', 'ips'],
+        eventos: ['dia_nino', 'san_juan', 'dia_autismo', 'clausura_padres', 'navidad', 'cena_fin_ano'],
+        variables: ['insumos_nt', 'papeleria_nt', 'mantenimiento_nt', 'cursos_nt', 'gastos_varios_nt']
+    }
+};
+
+// Cuentas predefinidas por módulo
+const CUENTAS_PREDEFINIDAS = {
+    familia: [
+        { nombre: 'ITAU Marco', tipo: 'corriente' },
+        { nombre: 'ITAU Clara', tipo: 'corriente' },
+        { nombre: 'UENO Clara', tipo: 'corriente' },
+        { nombre: 'Coop. Universitaria Marco', tipo: 'ahorro' },
+        { nombre: 'Efectivo', tipo: 'efectivo' }
+    ],
+    neurotea: [
+        { nombre: 'Atlas', tipo: 'corriente' },
+        { nombre: 'Caja NT', tipo: 'efectivo' }
+    ]
+};
+
+// Tipos de movimiento
+const TIPOS_MOVIMIENTO = {
+    ingreso_nt: { nombre: 'Ingreso NeuroTEA', modulo: 'neurotea', tipo: 'ingreso' },
+    ingreso_marco: { nombre: 'Ingreso Marco', modulo: 'familia', tipo: 'ingreso', persona: 'marco' },
+    ingreso_clara: { nombre: 'Ingreso Clara', modulo: 'familia', tipo: 'ingreso', persona: 'clara' },
+    egreso_nt: { nombre: 'Egreso NeuroTEA', modulo: 'neurotea', tipo: 'egreso' },
+    egreso_familiar: { nombre: 'Egreso Familiar', modulo: 'familia', tipo: 'egreso' },
+    prestamo_nt_familia: { nombre: 'Préstamo NT → Familia', origen: 'neurotea', destino: 'familia' },
+    devolucion_familia_nt: { nombre: 'Devolución Familia → NT', origen: 'familia', destino: 'neurotea' }
+};
+
+// Función para obtener categorías por módulo y tipo
+function getCategoriasModulo(modulo, tipo) {
+    const estructura = modulo === 'familia' ? CATEGORIAS_FAMILIA : CATEGORIAS_NEUROTEA;
+    const categorias = estructura[tipo];
+
+    if (!categorias) return [];
+
+    // Aplanar todas las categorías
+    const resultado = [];
+    for (const [grupo, cats] of Object.entries(categorias)) {
+        for (const cat of cats) {
+            resultado.push({
+                identificador: cat,
+                nombre: NOMBRES_CATEGORIAS[cat] || cat,
+                grupo: grupo
+            });
+        }
+    }
+    return resultado;
+}
+
+// Función para obtener grupos de categorías
+function getGruposCategoria(modulo, tipo) {
+    const estructura = modulo === 'familia' ? CATEGORIAS_FAMILIA : CATEGORIAS_NEUROTEA;
+    return estructura[tipo] || {};
+}
 
 // Obtener nombre bonito de categoría
 function getNombreCategoria(categoria) {
     return NOMBRES_CATEGORIAS[categoria] || formatearCategoria(categoria);
 }
 
-// Tipos de gasto
+// Tipos de gasto - Grupos del Excel por módulo
+const TIPOS_GASTO_FAMILIA = {
+    gastos_fijos: { nombre: 'Gastos Fijos', icono: '📌', descripcion: 'Pagos fijos mensuales del hogar' },
+    cuotas_prestamos: { nombre: 'Cuotas y Préstamos', icono: '💳', descripcion: 'Cuotas de préstamos y tarjetas' },
+    suscripciones: { nombre: 'Suscripciones e Internet', icono: '📱', descripcion: 'Servicios digitales y telefonía' },
+    variables: { nombre: 'Variables', icono: '📊', descripcion: 'Gastos que varían mes a mes' }
+};
+
+const TIPOS_GASTO_NEUROTEA = {
+    gastos_fijos: { nombre: 'Gastos Fijos', icono: '📌', descripcion: 'Alquileres y servicios fijos' },
+    sueldos_honorarios: { nombre: 'Sueldos y Honorarios', icono: '👥', descripcion: 'Pagos al personal y profesionales' },
+    telefonia_internet: { nombre: 'Telefonía e Internet', icono: '📱', descripcion: 'Comunicaciones de la clínica' },
+    impuestos: { nombre: 'Impuestos', icono: '⚖️', descripcion: 'Obligaciones tributarias (IVA, IPS)' },
+    eventos: { nombre: 'Eventos', icono: '🎉', descripcion: 'Celebraciones y actividades especiales' },
+    variables: { nombre: 'Variables', icono: '📊', descripcion: 'Insumos y gastos operativos' }
+};
+
+// Función para obtener tipos de gasto según módulo
+function getTiposGasto(modulo) {
+    return modulo === 'familia' ? TIPOS_GASTO_FAMILIA : TIPOS_GASTO_NEUROTEA;
+}
+
+// TIPOS_GASTO genérico para compatibilidad (fallback)
 const TIPOS_GASTO = {
-    fijo: { nombre: 'Fijo', icono: '&#128204;', descripcion: 'Pagos que no cambian mes a mes' },
-    variable: { nombre: 'Variable', icono: '&#128202;', descripcion: 'Cambian cada mes' },
-    mantenimiento: { nombre: 'Mantenimiento', icono: '&#128295;', descripcion: 'Reparaciones y mejoras' },
-    ocio: { nombre: 'Ocio/Entretenimiento', icono: '&#127918;', descripcion: 'Diversión y tiempo libre' }
+    gastos_fijos: { nombre: 'Gastos Fijos', icono: '📌', descripcion: 'Pagos fijos mensuales' },
+    cuotas_prestamos: { nombre: 'Cuotas y Préstamos', icono: '💳', descripcion: 'Cuotas de préstamos' },
+    sueldos_honorarios: { nombre: 'Sueldos y Honorarios', icono: '👥', descripcion: 'Pagos al personal' },
+    suscripciones: { nombre: 'Suscripciones', icono: '📱', descripcion: 'Servicios digitales' },
+    telefonia_internet: { nombre: 'Telefonía e Internet', icono: '📱', descripcion: 'Comunicaciones' },
+    impuestos: { nombre: 'Impuestos', icono: '⚖️', descripcion: 'Obligaciones tributarias' },
+    eventos: { nombre: 'Eventos', icono: '🎉', descripcion: 'Celebraciones' },
+    variables: { nombre: 'Variables', icono: '📊', descripcion: 'Gastos que varían' }
 };
 
 // Tipos de cuenta
