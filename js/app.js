@@ -2745,7 +2745,18 @@ function abrirModal(id) {
 }
 
 function cerrarModal(id) {
-    document.getElementById(id).classList.add('hidden');
+    if (id) {
+        document.getElementById(id).classList.add('hidden');
+    } else {
+        // Cerrar modal dinámico
+        document.getElementById('modal-dinamico').classList.add('hidden');
+    }
+}
+
+function mostrarModal(html) {
+    const contenedor = document.getElementById('modal-dinamico-contenido');
+    contenedor.innerHTML = html;
+    document.getElementById('modal-dinamico').classList.remove('hidden');
 }
 
 function mostrarToast(mensaje, tipo = 'info') {
@@ -3956,6 +3967,11 @@ async function renderDashboardInteligente(contenedor) {
     const totalCaja = cuentas.filter(c => c.activa !== false).reduce((s, c) => s + c.saldoActual, 0);
     const alertas = await obtenerAlertas(moduloActual);
 
+    // Obtener préstamos inter-módulo pendientes (FUGA)
+    const prestamosInter = await obtenerPrestamosInterModuloPendientes();
+    const fugaNTaFamilia = prestamosInter.filter(p => p.origen === 'neurotea' && p.destino === 'familia');
+    const totalFuga = fugaNTaFamilia.reduce((s, p) => s + (p.monto - (p.montoDevuelto || 0)), 0);
+
     let saludNT = null;
     if (moduloActual === 'neurotea') saludNT = await calcularSaludNT(año, mes);
 
@@ -3980,6 +3996,16 @@ async function renderDashboardInteligente(contenedor) {
                 <div class="indicador-valor-grande ${resumen.balance >= 0 ? 'positivo' : 'negativo'}">${resumen.balance >= 0 ? '+' : ''}${formatearMoneda(resumen.balance)}</div>
                 <div class="balance-detalle"><span class="positivo">+${formatearMoneda(resumen.totalIngresos)}</span><span class="negativo">-${formatearMoneda(resumen.totalEgresos)}</span></div>
             </div>`;
+
+    // Indicador FUGA (préstamos NT → Familia pendientes)
+    if (totalFuga > 0) {
+        html += `<div class="indicador-card fuga">
+            <div class="indicador-header"><span class="indicador-titulo">FUGA NT → Familia</span></div>
+            <div class="indicador-valor-grande negativo">${formatearMoneda(totalFuga)}</div>
+            <div class="indicador-detalle">${fugaNTaFamilia.length} préstamo(s) pendiente(s)</div>
+            <button class="btn btn-sm btn-outline mt-2" onclick="verPrestamosInterModulo()">Ver detalle</button>
+        </div>`;
+    }
 
     if (saludNT) {
         const cumple = saludNT.porcentajeGastos <= 93;
@@ -4178,5 +4204,167 @@ async function reiniciarCategorias() {
         await inicializarCategoriasPredeterminadas(moduloActual);
         mostrarToast('Categorias reiniciadas', 'exito');
         cargarSeccion('configurar');
+    }
+}
+
+// ==========================================
+// 5. PRÉSTAMOS INTER-MÓDULO (FUGA)
+// ==========================================
+
+async function verPrestamosInterModulo() {
+    const prestamos = await obtenerPrestamosInterModuloPendientes();
+
+    let html = `<div class="modal-header">
+        <h3>Préstamos Inter-Módulo</h3>
+        <button class="btn-cerrar" onclick="cerrarModal()">X</button>
+    </div>
+    <div class="modal-body">
+        <div class="mb-3">
+            <button class="btn btn-primary" onclick="abrirFormularioPrestamoInter()">+ Nuevo Préstamo</button>
+        </div>`;
+
+    if (prestamos.length === 0) {
+        html += `<p class="text-muted">No hay préstamos pendientes entre módulos.</p>`;
+    } else {
+        html += `<div class="prestamos-lista">`;
+        for (const p of prestamos) {
+            const pendiente = p.monto - (p.montoDevuelto || 0);
+            const progreso = ((p.montoDevuelto || 0) / p.monto) * 100;
+            html += `<div class="prestamo-item">
+                <div class="prestamo-header">
+                    <span class="prestamo-direccion">${p.origen === 'neurotea' ? 'NeuroTEA → Familia' : 'Familia → NeuroTEA'}</span>
+                    <span class="prestamo-fecha">${formatearFecha(p.fecha)}</span>
+                </div>
+                <div class="prestamo-montos">
+                    <span>Total: ${formatearMoneda(p.monto)}</span>
+                    <span class="negativo">Pendiente: ${formatearMoneda(pendiente)}</span>
+                </div>
+                <div class="prestamo-motivo">${p.motivo || 'Sin descripción'}</div>
+                <div class="barra-progreso"><div class="barra-fill" style="width: ${progreso}%"></div></div>
+                <div class="prestamo-acciones">
+                    <button class="btn btn-sm btn-success" onclick="abrirPagoPrestamoInter('${p.id}', ${pendiente})">Registrar Pago</button>
+                    ${p.estado !== 'cancelado' ? `<button class="btn btn-sm btn-outline" onclick="cancelarPrestamoInter('${p.id}')">Cancelar</button>` : ''}
+                </div>
+            </div>`;
+        }
+        html += `</div>`;
+    }
+    html += `</div>`;
+
+    mostrarModal(html);
+}
+
+function abrirFormularioPrestamoInter() {
+    const html = `<div class="modal-header">
+        <h3>Nuevo Préstamo Inter-Módulo</h3>
+        <button class="btn-cerrar" onclick="cerrarModal()">X</button>
+    </div>
+    <div class="modal-body">
+        <form id="form-prestamo-inter" onsubmit="guardarPrestamoInterModulo(event)">
+            <div class="form-group">
+                <label>Dirección del Préstamo</label>
+                <select name="direccion" required class="form-control">
+                    <option value="nt_a_familia">NeuroTEA → Familia (FUGA)</option>
+                    <option value="familia_a_nt">Familia → NeuroTEA</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Fecha</label>
+                <input type="date" name="fecha" value="${formatearFechaInput(new Date())}" required class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Monto</label>
+                <input type="number" name="monto" required min="1" class="form-control" placeholder="Ej: 500000">
+            </div>
+            <div class="form-group">
+                <label>Motivo</label>
+                <input type="text" name="motivo" class="form-control" placeholder="Ej: Cubrir gastos escolares">
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-outline" onclick="verPrestamosInterModulo()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Guardar Préstamo</button>
+            </div>
+        </form>
+    </div>`;
+
+    mostrarModal(html);
+}
+
+async function guardarPrestamoInterModulo(event) {
+    event.preventDefault();
+    const form = event.target;
+    const direccion = form.direccion.value;
+    const fecha = form.fecha.value;
+    const monto = parseFloat(form.monto.value);
+    const motivo = form.motivo.value;
+
+    try {
+        await crearPrestamoInterModulo({
+            fecha,
+            tipo: direccion,
+            monto,
+            motivo,
+            origen: direccion === 'nt_a_familia' ? 'neurotea' : 'familia',
+            destino: direccion === 'nt_a_familia' ? 'familia' : 'neurotea'
+        });
+        mostrarToast('Préstamo registrado', 'exito');
+        cerrarModal();
+        cargarSeccion(seccionActual);
+    } catch (e) {
+        mostrarToast('Error al guardar: ' + e.message, 'error');
+    }
+}
+
+function abrirPagoPrestamoInter(prestamoId, pendiente) {
+    const html = `<div class="modal-header">
+        <h3>Registrar Pago</h3>
+        <button class="btn-cerrar" onclick="cerrarModal()">X</button>
+    </div>
+    <div class="modal-body">
+        <p>Monto pendiente: <strong>${formatearMoneda(pendiente)}</strong></p>
+        <form id="form-pago-inter" onsubmit="guardarPagoPrestamoInter(event, '${prestamoId}')">
+            <div class="form-group">
+                <label>Fecha del Pago</label>
+                <input type="date" name="fecha" value="${formatearFechaInput(new Date())}" required class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Monto a Pagar</label>
+                <input type="number" name="monto" required min="1" max="${pendiente}" class="form-control" value="${pendiente}">
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-outline" onclick="verPrestamosInterModulo()">Cancelar</button>
+                <button type="submit" class="btn btn-success">Confirmar Pago</button>
+            </div>
+        </form>
+    </div>`;
+
+    mostrarModal(html);
+}
+
+async function guardarPagoPrestamoInter(event, prestamoId) {
+    event.preventDefault();
+    const form = event.target;
+    const fecha = form.fecha.value;
+    const monto = parseFloat(form.monto.value);
+
+    try {
+        await pagarPrestamoInterModulo(prestamoId, monto, fecha);
+        mostrarToast('Pago registrado', 'exito');
+        cerrarModal();
+        cargarSeccion(seccionActual);
+    } catch (e) {
+        mostrarToast('Error: ' + e.message, 'error');
+    }
+}
+
+async function cancelarPrestamoInter(prestamoId) {
+    if (await confirmarAccion('Cancelar Préstamo', '¿Está seguro de cancelar este préstamo?')) {
+        try {
+            await actualizar('prestamos_inter_modulo', prestamoId, { estado: 'cancelado' });
+            mostrarToast('Préstamo cancelado', 'exito');
+            verPrestamosInterModulo();
+        } catch (e) {
+            mostrarToast('Error', 'error');
+        }
     }
 }
