@@ -2876,3 +2876,119 @@ textarea.form-control {
         justify-content: center;
     }
 }
+
+/* ==========================================
+   FUGA - Préstamos Inter-Módulo
+   ========================================== */
+
+.indicador-card.fuga {
+    background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+    border: 2px solid #fc8181;
+}
+
+.indicador-card.fuga .indicador-titulo {
+    color: #c53030;
+    font-weight: 600;
+}
+
+.prestamos-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.prestamo-item {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border-color, #e2e8f0);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.prestamo-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.prestamo-direccion {
+    font-weight: 600;
+    color: var(--text-color, #2d3748);
+}
+
+.prestamo-fecha {
+    font-size: 0.85rem;
+    color: var(--text-muted, #718096);
+}
+
+.prestamo-montos {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.prestamo-motivo {
+    font-size: 0.9rem;
+    color: var(--text-muted, #718096);
+    margin-bottom: 8px;
+    font-style: italic;
+}
+
+.prestamo-acciones {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color, #e2e8f0);
+    margin-bottom: 16px;
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.btn-cerrar {
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    cursor: pointer;
+    color: var(--text-muted, #718096);
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.btn-cerrar:hover {
+    background: var(--hover-bg, #f7fafc);
+    color: var(--text-color, #2d3748);
+}
+
+.modal-body {
+    padding: 0;
+}
+
+.text-muted {
+    color: var(--text-muted, #718096);
+}
+
+.modal-lg {
+    max-width: 600px;
+    width: 95%;
+}
+
+.mb-3 {
+    margin-bottom: 1rem;
+}
