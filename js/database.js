@@ -3,7 +3,7 @@
    ========================================== */
 
 const DB_NAME = 'GestorFinancieroApp';
-const DB_VERSION = 2;  // Incrementado para agregar papelera y mejorar categorías
+const DB_VERSION = 3;  // Incrementado para nueva arquitectura: gastos_fijos, deudas, prestamos_inter_modulo
 
 let db = null;
 
@@ -20,6 +20,8 @@ const STORES_CONFIG = {
     familia_categorias: { keyPath: 'id', indexes: ['tipo', 'tipoGasto', 'activa', 'identificador'] },
     familia_recurrentes: { keyPath: 'id', indexes: ['tipo', 'activo'] },
     familia_papelera: { keyPath: 'id', indexes: ['tipo', 'storeName', 'deletedAt', 'expiresAt'] },
+    familia_gastos_fijos: { keyPath: 'id', indexes: ['categoria', 'activo', 'diaVencimiento', 'prioridad'] },
+    familia_deudas: { keyPath: 'id', indexes: ['tipo', 'estado', 'prioridad', 'fechaProximoPago'] },
 
     // NEUROTEA
     neurotea_ingresos: { keyPath: 'id', indexes: ['fecha', 'categoria', 'cuentaDestino'] },
@@ -29,9 +31,12 @@ const STORES_CONFIG = {
     neurotea_categorias: { keyPath: 'id', indexes: ['tipo', 'tipoGasto', 'activa', 'identificador'] },
     neurotea_recurrentes: { keyPath: 'id', indexes: ['tipo', 'activo'] },
     neurotea_papelera: { keyPath: 'id', indexes: ['tipo', 'storeName', 'deletedAt', 'expiresAt'] },
+    neurotea_gastos_fijos: { keyPath: 'id', indexes: ['categoria', 'activo', 'diaVencimiento', 'prioridad'] },
+    neurotea_deudas: { keyPath: 'id', indexes: ['tipo', 'estado', 'prioridad', 'fechaProximoPago'] },
 
     // GLOBAL
-    configuracion: { keyPath: 'id', indexes: [] }
+    configuracion: { keyPath: 'id', indexes: [] },
+    prestamos_inter_modulo: { keyPath: 'id', indexes: ['origen', 'destino', 'estado', 'fecha'] }
 };
 
 // Días de retención en papelera antes de eliminación permanente
@@ -543,7 +548,7 @@ async function copiarPresupuestoMesAnterior(modulo, añoDestino, mesDestino) {
 // Exportar todos los datos
 async function exportarTodosLosDatos() {
     const datos = {
-        version: '2.0',
+        version: '3.0',
         fechaExportacion: new Date().toISOString(),
         familia: {
             ingresos: await obtenerTodos('familia_ingresos'),
@@ -554,7 +559,9 @@ async function exportarTodosLosDatos() {
             metas: await obtenerTodos('familia_metas'),
             presupuesto: await obtenerTodos('familia_presupuesto'),
             categorias: await obtenerTodos('familia_categorias'),
-            recurrentes: await obtenerTodos('familia_recurrentes')
+            recurrentes: await obtenerTodos('familia_recurrentes'),
+            gastos_fijos: await obtenerTodos('familia_gastos_fijos'),
+            deudas: await obtenerTodos('familia_deudas')
         },
         neurotea: {
             ingresos: await obtenerTodos('neurotea_ingresos'),
@@ -562,8 +569,11 @@ async function exportarTodosLosDatos() {
             cuentas: await obtenerTodos('neurotea_cuentas'),
             presupuesto: await obtenerTodos('neurotea_presupuesto'),
             categorias: await obtenerTodos('neurotea_categorias'),
-            recurrentes: await obtenerTodos('neurotea_recurrentes')
+            recurrentes: await obtenerTodos('neurotea_recurrentes'),
+            gastos_fijos: await obtenerTodos('neurotea_gastos_fijos'),
+            deudas: await obtenerTodos('neurotea_deudas')
         },
+        prestamos_inter_modulo: await obtenerTodos('prestamos_inter_modulo'),
         configuracion: await obtenerTodos('configuracion')
     };
 
@@ -580,15 +590,17 @@ async function importarDatos(datos) {
     const storesFamilia = [
         'familia_ingresos', 'familia_egresos', 'familia_prestamos',
         'familia_cuentas', 'familia_transferencias', 'familia_metas',
-        'familia_presupuesto', 'familia_categorias', 'familia_recurrentes'
+        'familia_presupuesto', 'familia_categorias', 'familia_recurrentes',
+        'familia_gastos_fijos', 'familia_deudas'
     ];
 
     const storesNeurotea = [
         'neurotea_ingresos', 'neurotea_egresos', 'neurotea_cuentas',
-        'neurotea_presupuesto', 'neurotea_categorias', 'neurotea_recurrentes'
+        'neurotea_presupuesto', 'neurotea_categorias', 'neurotea_recurrentes',
+        'neurotea_gastos_fijos', 'neurotea_deudas'
     ];
 
-    for (const store of [...storesFamilia, ...storesNeurotea, 'configuracion']) {
+    for (const store of [...storesFamilia, ...storesNeurotea, 'prestamos_inter_modulo', 'configuracion']) {
         await limpiarStore(store);
     }
 
@@ -610,6 +622,11 @@ async function importarDatos(datos) {
                 await crear(storeName, registro);
             }
         }
+    }
+
+    // Importar préstamos inter-módulo
+    for (const prestamo of datos.prestamos_inter_modulo || []) {
+        await crear('prestamos_inter_modulo', prestamo);
     }
 
     // Importar configuración
@@ -634,12 +651,14 @@ async function borradoSeguro(codigo, opcion) {
     const storesFamilia = [
         'familia_ingresos', 'familia_egresos', 'familia_prestamos',
         'familia_cuentas', 'familia_transferencias', 'familia_metas',
-        'familia_presupuesto', 'familia_categorias', 'familia_recurrentes'
+        'familia_presupuesto', 'familia_categorias', 'familia_recurrentes',
+        'familia_gastos_fijos', 'familia_deudas', 'familia_papelera'
     ];
 
     const storesNeurotea = [
         'neurotea_ingresos', 'neurotea_egresos', 'neurotea_cuentas',
-        'neurotea_presupuesto', 'neurotea_categorias', 'neurotea_recurrentes'
+        'neurotea_presupuesto', 'neurotea_categorias', 'neurotea_recurrentes',
+        'neurotea_gastos_fijos', 'neurotea_deudas', 'neurotea_papelera'
     ];
 
     let storesABorrar = [];
@@ -652,6 +671,7 @@ async function borradoSeguro(codigo, opcion) {
     }
     if (opcion === 'todo') {
         storesABorrar.push('configuracion');
+        storesABorrar.push('prestamos_inter_modulo');
     }
 
     for (const store of storesABorrar) {
@@ -1220,4 +1240,599 @@ async function limpiarReferenciasHuerfanas(modulo) {
     }
 
     return { limpiados };
+}
+
+// ==========================================
+// INDICADORES DE LIQUIDEZ
+// ==========================================
+
+// Calcular Días de Oxígeno = Caja / (Gastos Mensuales / 30)
+async function calcularDiasOxigeno(modulo) {
+    // Obtener caja actual (suma de saldos de todas las cuentas)
+    const cuentas = await calcularTodosSaldos(modulo);
+    const cajaTotal = cuentas
+        .filter(c => c.activa !== false)
+        .reduce((sum, c) => sum + (c.saldoActual || 0), 0);
+
+    // Calcular promedio de gastos mensuales (últimos 3 meses)
+    const hoy = new Date();
+    let totalGastos = 0;
+    let mesesConDatos = 0;
+
+    for (let i = 0; i < 3; i++) {
+        const fecha = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+        const año = fecha.getFullYear();
+        const mes = fecha.getMonth() + 1;
+
+        const egresos = await obtenerEgresosMes(modulo, año, mes);
+        if (egresos.length > 0) {
+            totalGastos += sumar(egresos, 'monto');
+            mesesConDatos++;
+        }
+    }
+
+    const gastoMensualPromedio = mesesConDatos > 0 ? totalGastos / mesesConDatos : 0;
+    const gastoDiario = gastoMensualPromedio / 30;
+    const diasOxigeno = gastoDiario > 0 ? Math.floor(cajaTotal / gastoDiario) : 999;
+
+    return {
+        cajaTotal,
+        gastoMensualPromedio,
+        gastoDiario,
+        diasOxigeno,
+        nivel: diasOxigeno >= 90 ? 'excelente' :
+               diasOxigeno >= 60 ? 'bueno' :
+               diasOxigeno >= 30 ? 'aceptable' :
+               diasOxigeno >= 15 ? 'alerta' : 'critico'
+    };
+}
+
+// Calcular liquidez semanal (pagos pendientes vs disponible)
+async function calcularLiquidezSemanal(modulo) {
+    const hoy = new Date();
+    const inicioSemana = new Date(hoy);
+    inicioSemana.setDate(hoy.getDate() - hoy.getDay()); // Domingo
+    const finSemana = new Date(inicioSemana);
+    finSemana.setDate(inicioSemana.getDate() + 6); // Sábado
+
+    const inicioProximaSemana = new Date(finSemana);
+    inicioProximaSemana.setDate(finSemana.getDate() + 1);
+    const finProximaSemana = new Date(inicioProximaSemana);
+    finProximaSemana.setDate(inicioProximaSemana.getDate() + 6);
+
+    // Obtener gastos fijos activos
+    const gastosFijos = await obtenerTodos(`${modulo}_gastos_fijos`);
+    const gastosActivos = gastosFijos.filter(g => g.activo !== false);
+
+    // Obtener deudas con pagos pendientes
+    const deudas = await obtenerTodos(`${modulo}_deudas`);
+    const deudasActivas = deudas.filter(d => d.estado === 'activo' || d.estado === 'pendiente');
+
+    // Clasificar pagos por semana
+    const pagosEstaSemana = [];
+    const pagosProximaSemana = [];
+    const pagosAtrasados = [];
+
+    const formatFecha = (d) => d.toISOString().split('T')[0];
+    const hoyStr = formatFecha(hoy);
+    const finSemanaStr = formatFecha(finSemana);
+    const finProximaSemanaStr = formatFecha(finProximaSemana);
+
+    // Calcular fecha de vencimiento para el mes actual
+    const calcularFechaVencimiento = (diaVencimiento) => {
+        const fecha = new Date(hoy.getFullYear(), hoy.getMonth(), diaVencimiento);
+        // Si ya pasó, es el próximo mes
+        if (fecha < hoy) {
+            fecha.setMonth(fecha.getMonth() + 1);
+        }
+        return fecha;
+    };
+
+    // Clasificar gastos fijos
+    for (const gasto of gastosActivos) {
+        const fechaVenc = calcularFechaVencimiento(gasto.diaVencimiento || 1);
+        const fechaVencStr = formatFecha(fechaVenc);
+
+        const item = {
+            tipo: 'gasto_fijo',
+            id: gasto.id,
+            nombre: gasto.nombre || gasto.categoria,
+            monto: gasto.monto,
+            fechaVencimiento: fechaVencStr,
+            prioridad: gasto.prioridad || 6,
+            estado: gasto.estadoPago || 'ninguno'
+        };
+
+        if (fechaVencStr < hoyStr && item.estado !== 'pagado') {
+            pagosAtrasados.push(item);
+        } else if (fechaVencStr <= finSemanaStr) {
+            pagosEstaSemana.push(item);
+        } else if (fechaVencStr <= finProximaSemanaStr) {
+            pagosProximaSemana.push(item);
+        }
+    }
+
+    // Clasificar deudas
+    for (const deuda of deudasActivas) {
+        if (!deuda.fechaProximoPago) continue;
+
+        const item = {
+            tipo: 'deuda',
+            id: deuda.id,
+            nombre: deuda.nombre || deuda.acreedor,
+            monto: deuda.cuotaMensual || deuda.montoMinimo,
+            fechaVencimiento: deuda.fechaProximoPago,
+            prioridad: deuda.prioridad || 5,
+            estado: 'pendiente'
+        };
+
+        if (deuda.fechaProximoPago < hoyStr) {
+            pagosAtrasados.push(item);
+        } else if (deuda.fechaProximoPago <= finSemanaStr) {
+            pagosEstaSemana.push(item);
+        } else if (deuda.fechaProximoPago <= finProximaSemanaStr) {
+            pagosProximaSemana.push(item);
+        }
+    }
+
+    // Ordenar por prioridad y fecha
+    const ordenar = (a, b) => a.prioridad - b.prioridad || a.fechaVencimiento.localeCompare(b.fechaVencimiento);
+    pagosAtrasados.sort(ordenar);
+    pagosEstaSemana.sort(ordenar);
+    pagosProximaSemana.sort(ordenar);
+
+    // Calcular totales
+    const totalAtrasados = pagosAtrasados.reduce((s, p) => s + (p.monto || 0), 0);
+    const totalEstaSemana = pagosEstaSemana.reduce((s, p) => s + (p.monto || 0), 0);
+    const totalProximaSemana = pagosProximaSemana.reduce((s, p) => s + (p.monto || 0), 0);
+
+    // Obtener caja disponible
+    const cuentas = await calcularTodosSaldos(modulo);
+    const cajaDisponible = cuentas
+        .filter(c => c.activa !== false)
+        .reduce((sum, c) => sum + (c.saldoActual || 0), 0);
+
+    // Calcular si alcanza
+    const necesarioInmediato = totalAtrasados + totalEstaSemana;
+    const necesarioTotal = necesarioInmediato + totalProximaSemana;
+    const alcanzaEstaSemana = cajaDisponible >= necesarioInmediato;
+    const alcanzaDosSemananas = cajaDisponible >= necesarioTotal;
+
+    return {
+        cajaDisponible,
+        pagosAtrasados,
+        pagosEstaSemana,
+        pagosProximaSemana,
+        totalAtrasados,
+        totalEstaSemana,
+        totalProximaSemana,
+        necesarioInmediato,
+        necesarioTotal,
+        alcanzaEstaSemana,
+        alcanzaDosSemananas,
+        saldoDespuesEstaSemana: cajaDisponible - necesarioInmediato,
+        saldoDespuesProximaSemana: cajaDisponible - necesarioTotal
+    };
+}
+
+// ==========================================
+// MODELO 93/7 - SALUD NEUROTEA
+// ==========================================
+
+// Calcular salud de NeuroTEA según modelo 93/7
+async function calcularSaludNT(año, mes) {
+    const rango = getRangoMes(año, mes);
+
+    const ingresos = await obtenerIngresosMes('neurotea', año, mes);
+    const egresos = await obtenerEgresosMes('neurotea', año, mes);
+
+    const totalIngresos = sumar(ingresos, 'monto');
+    const totalEgresos = sumar(egresos, 'monto');
+
+    // Modelo 93/7: Ingresos = 100%, Gastos operativos = 93%, Ganancia = 7%
+    const limiteGastos = totalIngresos * 0.93;
+    const gananciaEsperada = totalIngresos * 0.07;
+    const gananciaReal = totalIngresos - totalEgresos;
+
+    // Subdivisión del 7% (4 partes de 1.75%)
+    const porcionGanancia = totalIngresos * 0.0175;
+    const subdivisiones = {
+        reserva: porcionGanancia,      // Reserva de emergencia
+        reinversion: porcionGanancia,  // Reinversión en el negocio
+        desarrollo: porcionGanancia,   // Desarrollo/capacitación
+        distribucion: porcionGanancia  // Distribución a socios
+    };
+
+    // Calcular cumplimiento
+    const porcentajeGastos = totalIngresos > 0 ? (totalEgresos / totalIngresos) * 100 : 0;
+    const porcentajeGanancia = totalIngresos > 0 ? (gananciaReal / totalIngresos) * 100 : 0;
+
+    // Determinar estado de salud
+    let estadoSalud = 'critico';
+    if (porcentajeGastos <= 93 && gananciaReal > 0) {
+        estadoSalud = porcentajeGanancia >= 7 ? 'excelente' :
+                      porcentajeGanancia >= 5 ? 'bueno' :
+                      porcentajeGanancia >= 3 ? 'aceptable' : 'alerta';
+    } else if (porcentajeGastos <= 100) {
+        estadoSalud = 'alerta';
+    }
+
+    // Verificar préstamos a familia (FUGA)
+    const prestamosAFamilia = await obtenerTodos('prestamos_inter_modulo');
+    const fugaActiva = prestamosAFamilia.filter(p =>
+        p.origen === 'neurotea' &&
+        p.destino === 'familia' &&
+        p.estado !== 'pagado'
+    );
+    const totalFuga = fugaActiva.reduce((s, p) => s + (p.saldoPendiente || p.monto || 0), 0);
+
+    return {
+        año,
+        mes,
+        totalIngresos,
+        totalEgresos,
+        limiteGastos,
+        gananciaEsperada,
+        gananciaReal,
+        porcentajeGastos: Math.round(porcentajeGastos * 100) / 100,
+        porcentajeGanancia: Math.round(porcentajeGanancia * 100) / 100,
+        estadoSalud,
+        subdivisiones,
+        cumple93: porcentajeGastos <= 93,
+        cumple7: porcentajeGanancia >= 7,
+        fuga: {
+            cantidad: fugaActiva.length,
+            total: totalFuga,
+            prestamos: fugaActiva
+        }
+    };
+}
+
+// ==========================================
+// GASTOS FIJOS
+// ==========================================
+
+// Obtener gastos fijos activos
+async function obtenerGastosFijosActivos(modulo) {
+    const todos = await obtenerTodos(`${modulo}_gastos_fijos`);
+    return todos.filter(g => g.activo !== false)
+        .sort((a, b) => (a.prioridad || 6) - (b.prioridad || 6));
+}
+
+// Crear gasto fijo
+async function crearGastoFijo(modulo, datos) {
+    const gasto = {
+        nombre: datos.nombre,
+        categoria: datos.categoria,
+        monto: datos.monto,
+        diaVencimiento: datos.diaVencimiento || 1,
+        prioridad: datos.prioridad || 6, // 1=IPS/Impuestos, 2=Salarios, 3=Alquiler, 4=Proveedores, 5=Bancos, 6=Otros
+        activo: true,
+        estadoPago: 'ninguno', // ninguno, pendiente, pagado, cancelado
+        notas: datos.notas || ''
+    };
+
+    return await crear(`${modulo}_gastos_fijos`, gasto);
+}
+
+// Marcar gasto fijo como pagado (genera egreso automático)
+async function marcarGastoFijoPagado(modulo, gastoFijoId, datosPago = {}) {
+    const gasto = await obtenerPorId(`${modulo}_gastos_fijos`, gastoFijoId);
+    if (!gasto) throw new Error('Gasto fijo no encontrado');
+
+    const hoy = new Date();
+    const fecha = datosPago.fecha || hoy.toISOString().split('T')[0];
+
+    // Crear egreso asociado
+    const egreso = await crear(`${modulo}_egresos`, {
+        fecha,
+        tipoGasto: 'fijo',
+        categoria: gasto.categoria,
+        monto: datosPago.monto || gasto.monto,
+        descripcion: `${gasto.nombre} - Pago mensual`,
+        cuentaOrigen: datosPago.cuentaOrigen || null,
+        gastoFijoId: gastoFijoId
+    });
+
+    // Actualizar estado del gasto fijo
+    await actualizar(`${modulo}_gastos_fijos`, gastoFijoId, {
+        estadoPago: 'pagado',
+        ultimoPago: fecha,
+        egresoGeneradoId: egreso.id
+    });
+
+    return { gasto, egreso };
+}
+
+// Resetear estados de pago para nuevo mes
+async function resetearEstadosPagoMes(modulo) {
+    const gastosFijos = await obtenerTodos(`${modulo}_gastos_fijos`);
+    let reseteados = 0;
+
+    for (const gasto of gastosFijos) {
+        if (gasto.activo !== false) {
+            await actualizar(`${modulo}_gastos_fijos`, gasto.id, {
+                estadoPago: 'ninguno',
+                egresoGeneradoId: null
+            });
+            reseteados++;
+        }
+    }
+
+    return { reseteados };
+}
+
+// ==========================================
+// DEUDAS
+// ==========================================
+
+// Crear deuda
+async function crearDeuda(modulo, datos) {
+    const deuda = {
+        nombre: datos.nombre,
+        acreedor: datos.acreedor,
+        tipo: datos.tipo || 'otro', // personal, hipotecario, vehicular, tarjeta, otro
+        montoOriginal: datos.montoOriginal,
+        saldoPendiente: datos.saldoPendiente || datos.montoOriginal,
+        cuotaMensual: datos.cuotaMensual,
+        tasaInteres: datos.tasaInteres || 0,
+        totalCuotas: datos.totalCuotas || null,
+        cuotasPagadas: datos.cuotasPagadas || 0,
+        fechaInicio: datos.fechaInicio,
+        fechaProximoPago: datos.fechaProximoPago,
+        prioridad: datos.prioridad || 5, // 5=Bancos por defecto
+        estado: 'activo', // activo, pendiente, pagado, cancelado
+        historialPagos: [],
+        notas: datos.notas || ''
+    };
+
+    return await crear(`${modulo}_deudas`, deuda);
+}
+
+// Registrar pago de deuda
+async function registrarPagoDeuda(modulo, deudaId, datosPago = {}) {
+    const deuda = await obtenerPorId(`${modulo}_deudas`, deudaId);
+    if (!deuda) throw new Error('Deuda no encontrada');
+    if (deuda.estado === 'pagado') throw new Error('Esta deuda ya está pagada');
+
+    const hoy = new Date();
+    const fecha = datosPago.fecha || hoy.toISOString().split('T')[0];
+    const monto = datosPago.monto || deuda.cuotaMensual;
+
+    // Crear egreso asociado
+    const egreso = await crear(`${modulo}_egresos`, {
+        fecha,
+        tipoGasto: 'fijo',
+        categoria: 'cuota_prestamo',
+        monto,
+        descripcion: `${deuda.nombre} - Cuota #${deuda.cuotasPagadas + 1}`,
+        cuentaOrigen: datosPago.cuentaOrigen || null,
+        deudaId: deudaId
+    });
+
+    // Actualizar deuda
+    const nuevoPago = {
+        id: generarId(),
+        fecha,
+        monto,
+        cuotaNumero: deuda.cuotasPagadas + 1,
+        egresoGeneradoId: egreso.id
+    };
+
+    const historialPagos = [...(deuda.historialPagos || []), nuevoPago];
+    const cuotasPagadas = deuda.cuotasPagadas + 1;
+    const saldoPendiente = Math.max(0, deuda.saldoPendiente - monto);
+
+    // Calcular próxima fecha de pago
+    const proximaFecha = new Date(fecha);
+    proximaFecha.setMonth(proximaFecha.getMonth() + 1);
+
+    let estado = 'activo';
+    if (saldoPendiente <= 0 || (deuda.totalCuotas && cuotasPagadas >= deuda.totalCuotas)) {
+        estado = 'pagado';
+    }
+
+    await actualizar(`${modulo}_deudas`, deudaId, {
+        historialPagos,
+        cuotasPagadas,
+        saldoPendiente,
+        fechaProximoPago: estado === 'pagado' ? null : proximaFecha.toISOString().split('T')[0],
+        estado
+    });
+
+    return { deuda: await obtenerPorId(`${modulo}_deudas`, deudaId), egreso };
+}
+
+// Obtener resumen de deudas
+async function obtenerResumenDeudas(modulo) {
+    const deudas = await obtenerTodos(`${modulo}_deudas`);
+    const activas = deudas.filter(d => d.estado === 'activo' || d.estado === 'pendiente');
+    const pagadas = deudas.filter(d => d.estado === 'pagado');
+
+    const totalDeuda = activas.reduce((s, d) => s + (d.saldoPendiente || 0), 0);
+    const cuotaMensualTotal = activas.reduce((s, d) => s + (d.cuotaMensual || 0), 0);
+    const montoOriginalTotal = deudas.reduce((s, d) => s + (d.montoOriginal || 0), 0);
+    const totalPagado = montoOriginalTotal - totalDeuda;
+    const progresoPago = montoOriginalTotal > 0 ? (totalPagado / montoOriginalTotal) * 100 : 100;
+
+    return {
+        cantidadActivas: activas.length,
+        cantidadPagadas: pagadas.length,
+        totalDeuda,
+        cuotaMensualTotal,
+        montoOriginalTotal,
+        totalPagado,
+        progresoPago: Math.round(progresoPago * 100) / 100,
+        deudas: activas.sort((a, b) => (a.prioridad || 5) - (b.prioridad || 5))
+    };
+}
+
+// ==========================================
+// PRÉSTAMOS INTER-MÓDULO (NT ↔ Familia)
+// ==========================================
+
+// Crear préstamo entre módulos (FUGA)
+async function crearPrestamoInterModulo(datos) {
+    const prestamo = {
+        origen: datos.origen, // 'neurotea' o 'familia'
+        destino: datos.destino, // 'familia' o 'neurotea'
+        fecha: datos.fecha || new Date().toISOString().split('T')[0],
+        monto: datos.monto,
+        saldoPendiente: datos.monto,
+        motivo: datos.motivo || '',
+        estado: 'pendiente', // pendiente, parcial, pagado
+        historialPagos: []
+    };
+
+    // Crear egreso en el origen
+    await crear(`${datos.origen}_egresos`, {
+        fecha: prestamo.fecha,
+        tipoGasto: 'variable',
+        categoria: 'prestamo_inter_modulo',
+        monto: prestamo.monto,
+        descripcion: `Préstamo a ${datos.destino === 'familia' ? 'Familia' : 'NeuroTEA'}: ${datos.motivo}`
+    });
+
+    // Crear ingreso en el destino
+    await crear(`${datos.destino}_ingresos`, {
+        fecha: prestamo.fecha,
+        categoria: 'prestamo_recibido',
+        monto: prestamo.monto,
+        descripcion: `Préstamo de ${datos.origen === 'neurotea' ? 'NeuroTEA' : 'Familia'}: ${datos.motivo}`
+    });
+
+    return await crear('prestamos_inter_modulo', prestamo);
+}
+
+// Registrar pago de préstamo inter-módulo
+async function pagarPrestamoInterModulo(prestamoId, monto, fecha = null) {
+    const prestamo = await obtenerPorId('prestamos_inter_modulo', prestamoId);
+    if (!prestamo) throw new Error('Préstamo no encontrado');
+
+    fecha = fecha || new Date().toISOString().split('T')[0];
+
+    const nuevoPago = {
+        id: generarId(),
+        fecha,
+        monto
+    };
+
+    const historialPagos = [...(prestamo.historialPagos || []), nuevoPago];
+    const saldoPendiente = Math.max(0, prestamo.saldoPendiente - monto);
+    const estado = saldoPendiente <= 0 ? 'pagado' : 'parcial';
+
+    // Crear egreso en destino (quien paga)
+    await crear(`${prestamo.destino}_egresos`, {
+        fecha,
+        tipoGasto: 'variable',
+        categoria: 'pago_prestamo_inter_modulo',
+        monto,
+        descripcion: `Devolución préstamo a ${prestamo.origen === 'neurotea' ? 'NeuroTEA' : 'Familia'}`
+    });
+
+    // Crear ingreso en origen (quien recibe)
+    await crear(`${prestamo.origen}_ingresos`, {
+        fecha,
+        categoria: 'devolucion_prestamo',
+        monto,
+        descripcion: `Devolución préstamo de ${prestamo.destino === 'familia' ? 'Familia' : 'NeuroTEA'}`
+    });
+
+    await actualizar('prestamos_inter_modulo', prestamoId, {
+        historialPagos,
+        saldoPendiente,
+        estado
+    });
+
+    return await obtenerPorId('prestamos_inter_modulo', prestamoId);
+}
+
+// Obtener préstamos inter-módulo pendientes
+async function obtenerPrestamosInterModuloPendientes(modulo = null) {
+    const todos = await obtenerTodos('prestamos_inter_modulo');
+    const pendientes = todos.filter(p => p.estado !== 'pagado');
+
+    if (modulo) {
+        return pendientes.filter(p => p.origen === modulo || p.destino === modulo);
+    }
+
+    return pendientes;
+}
+
+// ==========================================
+// CUMPLIMIENTO DE PRESUPUESTO CON SEMÁFORO
+// ==========================================
+
+// Calcular cumplimiento de presupuesto con semáforo
+async function calcularCumplimientoPresupuestoConSemaforo(modulo, año, mes) {
+    const presupuesto = await obtenerPresupuestoMes(modulo, año, mes);
+
+    if (!presupuesto) {
+        return { hayPresupuesto: false };
+    }
+
+    const egresos = await obtenerEgresosMes(modulo, año, mes);
+
+    // Agrupar egresos por categoría
+    const gastosPorCategoria = {};
+    for (const egreso of egresos) {
+        const cat = egreso.categoria;
+        if (!gastosPorCategoria[cat]) gastosPorCategoria[cat] = 0;
+        gastosPorCategoria[cat] += egreso.monto;
+    }
+
+    // Generar tabla de cumplimiento con semáforos
+    const tabla = [];
+    let totalPresupuestado = 0;
+    let totalGastado = 0;
+
+    for (const [tipo, categorias] of Object.entries(presupuesto.limites || {})) {
+        for (const [categoria, limite] of Object.entries(categorias)) {
+            const gastado = gastosPorCategoria[categoria] || 0;
+            const porcentaje = limite > 0 ? (gastado / limite) * 100 : 0;
+
+            // Semáforo: 🟢 < 100%, 🟡 = 100%, 🔴 > 100%
+            let semaforo = 'verde';
+            let icono = '🟢';
+            if (porcentaje > 100) {
+                semaforo = 'rojo';
+                icono = '🔴';
+            } else if (porcentaje >= 95) {
+                semaforo = 'amarillo';
+                icono = '🟡';
+            }
+
+            tabla.push({
+                tipo,
+                categoria,
+                presupuestado: limite,
+                gastado,
+                disponible: limite - gastado,
+                porcentaje: Math.round(porcentaje * 100) / 100,
+                semaforo,
+                icono
+            });
+
+            totalPresupuestado += limite;
+            totalGastado += gastado;
+        }
+    }
+
+    // Ordenar por porcentaje descendente (los más críticos primero)
+    tabla.sort((a, b) => b.porcentaje - a.porcentaje);
+
+    const porcentajeGeneral = totalPresupuestado > 0 ? (totalGastado / totalPresupuestado) * 100 : 0;
+
+    return {
+        hayPresupuesto: true,
+        año,
+        mes,
+        tabla,
+        totalPresupuestado,
+        totalGastado,
+        totalDisponible: totalPresupuestado - totalGastado,
+        porcentajeGeneral: Math.round(porcentajeGeneral * 100) / 100,
+        semaforoGeneral: porcentajeGeneral > 100 ? '🔴' : porcentajeGeneral >= 95 ? '🟡' : '🟢',
+        alertas: tabla.filter(t => t.semaforo !== 'verde')
+    };
 }

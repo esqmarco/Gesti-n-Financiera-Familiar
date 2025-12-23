@@ -147,9 +147,12 @@ async function cargarSeccion(seccion) {
         case 'dashboard': await renderDashboard(contenedor); break;
         case 'movimientos': await renderMovimientos(contenedor); break;
         case 'presupuesto': await renderPresupuesto(contenedor); break;
+        case 'gastos_fijos': await renderGastosFijos(contenedor); break;
+        case 'deudas': await renderDeudas(contenedor); break;
         case 'cuentas': await renderCuentas(contenedor); break;
         case 'prestamos': await renderPrestamos(contenedor); break;
         case 'metas': await renderMetas(contenedor); break;
+        case 'analisis': await renderAnalisis(contenedor); break;
         case 'reportes': await renderReportes(contenedor); break;
         case 'configuracion': renderConfiguracion(contenedor); break;
     }
@@ -160,9 +163,12 @@ function getTituloSeccion(seccion) {
         dashboard: 'Dashboard',
         movimientos: 'Movimientos',
         presupuesto: 'Presupuesto',
+        gastos_fijos: 'Gastos Fijos',
+        deudas: 'Deudas',
         cuentas: 'Cuentas Bancarias',
         prestamos: 'Préstamos',
         metas: 'Metas de Ahorro',
+        analisis: 'Análisis Financiero',
         reportes: 'Reportes',
         configuracion: 'Configuración'
     };
@@ -2774,3 +2780,763 @@ document.addEventListener('click', e => {
         e.target.classList.add('hidden');
     }
 });
+
+// ==========================================
+// GASTOS FIJOS
+// ==========================================
+
+async function renderGastosFijos(contenedor) {
+    const gastosFijos = await obtenerGastosFijosActivos(moduloActual);
+    const { año, mes } = mesVisualizacion;
+
+    let html = `
+        <div class="actions-bar mb-3">
+            <button class="btn btn-primary" onclick="abrirFormularioGastoFijo()">+ Nuevo Gasto Fijo</button>
+        </div>
+
+        <div class="alert alert-info mb-3">
+            <div class="alert-icon">📅</div>
+            <div class="alert-content">
+                Los gastos fijos son pagos mensuales recurrentes. Cuando los marcas como pagados,
+                se genera automáticamente un egreso.
+            </div>
+        </div>
+    `;
+
+    if (gastosFijos.length === 0) {
+        html += `
+            <div class="card">
+                <div class="card-body">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📋</div>
+                        <h3>Sin gastos fijos</h3>
+                        <p>Registra tus pagos mensuales recurrentes como servicios, cuotas, etc.</p>
+                        <button class="btn btn-primary" onclick="abrirFormularioGastoFijo()">Agregar Gasto Fijo</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else {
+        // Agrupar por prioridad
+        const porPrioridad = {};
+        for (const gasto of gastosFijos) {
+            const p = gasto.prioridad || 6;
+            if (!porPrioridad[p]) porPrioridad[p] = [];
+            porPrioridad[p].push(gasto);
+        }
+
+        for (const [prioridad, gastos] of Object.entries(porPrioridad).sort((a, b) => a[0] - b[0])) {
+            const prioridadInfo = PRIORIDADES_PAGO[prioridad] || PRIORIDADES_PAGO[6];
+
+            html += `
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <span class="card-title">${prioridadInfo.icono} ${prioridadInfo.nombre}</span>
+                        <span class="text-muted">${prioridadInfo.descripcion}</span>
+                    </div>
+                    <div class="card-body no-padding">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Concepto</th>
+                                    <th>Categoría</th>
+                                    <th>Día Venc.</th>
+                                    <th class="text-right">Monto</th>
+                                    <th>Estado</th>
+                                    <th class="text-right">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+
+            for (const gasto of gastos) {
+                const estadoInfo = ESTADOS_PAGO[gasto.estadoPago] || ESTADOS_PAGO.ninguno;
+                const categoriaNombre = getNombreCategoria(gasto.categoria);
+
+                html += `
+                    <tr>
+                        <td><strong>${gasto.nombre}</strong></td>
+                        <td>${categoriaNombre}</td>
+                        <td>Día ${gasto.diaVencimiento || 1}</td>
+                        <td class="text-right monto">${formatearMoneda(gasto.monto)}</td>
+                        <td>
+                            <span class="badge ${estadoInfo.clase}">${estadoInfo.icono} ${estadoInfo.nombre}</span>
+                        </td>
+                        <td class="text-right acciones">
+                            ${gasto.estadoPago !== 'pagado' ? `
+                                <button class="btn btn-sm btn-success" onclick="marcarGastoFijoPagadoUI('${gasto.id}')" title="Marcar pagado">✓ Pagar</button>
+                            ` : ''}
+                            <button class="btn btn-icon btn-sm btn-outline" onclick="editarGastoFijoUI('${gasto.id}')" title="Editar">✎</button>
+                            <button class="btn btn-icon btn-sm btn-outline" onclick="eliminarGastoFijoUI('${gasto.id}')" title="Eliminar">✕</button>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Botón para resetear estados del mes
+        html += `
+            <div class="card">
+                <div class="card-body">
+                    <p class="text-muted">Inicio de mes: resetea todos los estados de pago a "Sin Estado".</p>
+                    <button class="btn btn-secondary" onclick="resetearEstadosPagoUI()">🔄 Resetear Estados del Mes</button>
+                </div>
+            </div>
+        `;
+    }
+
+    contenedor.innerHTML = html;
+}
+
+function abrirFormularioGastoFijo(gastoId = null) {
+    document.getElementById('modal-form-titulo').textContent = gastoId ? 'Editar Gasto Fijo' : 'Nuevo Gasto Fijo';
+
+    const html = `
+        <form id="form-gasto-fijo">
+            <input type="hidden" id="gf-id" value="${gastoId || ''}">
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Nombre/Concepto <span class="required">*</span></label>
+                    <input type="text" class="form-control" id="gf-nombre" required placeholder="Ej: Internet Tigo">
+                </div>
+                <div class="form-group">
+                    <label>Monto <span class="required">*</span></label>
+                    <input type="number" class="form-control" id="gf-monto" required min="1" placeholder="150000">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Categoría <span class="required">*</span></label>
+                    <select class="form-control" id="gf-categoria">
+                        ${Object.entries(NOMBRES_CATEGORIAS).map(([id, nombre]) =>
+                            `<option value="${id}">${nombre}</option>`
+                        ).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Día de Vencimiento</label>
+                    <input type="number" class="form-control" id="gf-dia" min="1" max="31" value="1">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Prioridad de Pago</label>
+                    <select class="form-control" id="gf-prioridad">
+                        ${Object.entries(PRIORIDADES_PAGO).map(([p, info]) =>
+                            `<option value="${p}">${info.icono} ${info.nombre}</option>`
+                        ).join('')}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Notas</label>
+                <textarea class="form-control" id="gf-notas" rows="2" placeholder="Notas adicionales..."></textarea>
+            </div>
+        </form>
+    `;
+
+    document.getElementById('modal-form-contenido').innerHTML = html;
+    document.getElementById('modal-form-guardar').onclick = guardarGastoFijoUI;
+    abrirModal('modal-formulario');
+}
+
+async function guardarGastoFijoUI() {
+    const id = document.getElementById('gf-id').value;
+    const nombre = document.getElementById('gf-nombre').value.trim();
+    const monto = parseInt(document.getElementById('gf-monto').value);
+    const categoria = document.getElementById('gf-categoria').value;
+    const diaVencimiento = parseInt(document.getElementById('gf-dia').value) || 1;
+    const prioridad = parseInt(document.getElementById('gf-prioridad').value) || 6;
+    const notas = document.getElementById('gf-notas').value.trim();
+
+    if (!nombre || !monto) {
+        mostrarToast('Nombre y monto son requeridos', 'error');
+        return;
+    }
+
+    try {
+        if (id) {
+            await actualizar(`${moduloActual}_gastos_fijos`, id, { nombre, monto, categoria, diaVencimiento, prioridad, notas });
+            mostrarToast('Gasto fijo actualizado', 'exito');
+        } else {
+            await crearGastoFijo(moduloActual, { nombre, monto, categoria, diaVencimiento, prioridad, notas });
+            mostrarToast('Gasto fijo creado', 'exito');
+        }
+        cerrarModal('modal-formulario');
+        cargarSeccion('gastos_fijos');
+    } catch (error) {
+        mostrarToast(error.message || 'Error al guardar', 'error');
+    }
+}
+
+async function editarGastoFijoUI(id) {
+    const gasto = await obtenerPorId(`${moduloActual}_gastos_fijos`, id);
+    if (!gasto) return;
+
+    abrirFormularioGastoFijo(id);
+    setTimeout(() => {
+        document.getElementById('gf-nombre').value = gasto.nombre;
+        document.getElementById('gf-monto').value = gasto.monto;
+        document.getElementById('gf-categoria').value = gasto.categoria;
+        document.getElementById('gf-dia').value = gasto.diaVencimiento || 1;
+        document.getElementById('gf-prioridad').value = gasto.prioridad || 6;
+        document.getElementById('gf-notas').value = gasto.notas || '';
+    }, 50);
+}
+
+async function marcarGastoFijoPagadoUI(id) {
+    try {
+        const resultado = await marcarGastoFijoPagado(moduloActual, id);
+        mostrarToast(`${resultado.gasto.nombre} marcado como pagado`, 'exito');
+        cargarSeccion('gastos_fijos');
+    } catch (error) {
+        mostrarToast(error.message || 'Error al marcar como pagado', 'error');
+    }
+}
+
+async function eliminarGastoFijoUI(id) {
+    const confirmado = await confirmarAccion('Eliminar Gasto Fijo', '¿Está seguro de eliminar este gasto fijo?');
+    if (!confirmado) return;
+
+    try {
+        await softDelete(`${moduloActual}_gastos_fijos`, id);
+        mostrarToast('Gasto fijo eliminado', 'exito');
+        cargarSeccion('gastos_fijos');
+    } catch (error) {
+        mostrarToast(error.message || 'Error al eliminar', 'error');
+    }
+}
+
+async function resetearEstadosPagoUI() {
+    const confirmado = await confirmarAccion('Resetear Estados', '¿Resetear todos los estados de pago a "Sin Estado"?');
+    if (!confirmado) return;
+
+    try {
+        const resultado = await resetearEstadosPagoMes(moduloActual);
+        mostrarToast(`${resultado.reseteados} gasto(s) fijo(s) reseteados`, 'exito');
+        cargarSeccion('gastos_fijos');
+    } catch (error) {
+        mostrarToast(error.message || 'Error al resetear', 'error');
+    }
+}
+
+// ==========================================
+// DEUDAS
+// ==========================================
+
+async function renderDeudas(contenedor) {
+    const resumen = await obtenerResumenDeudas(moduloActual);
+
+    let html = `
+        <div class="actions-bar mb-3">
+            <button class="btn btn-primary" onclick="abrirFormularioDeuda()">+ Nueva Deuda</button>
+        </div>
+    `;
+
+    // Tarjetas de resumen
+    html += `
+        <div class="stats-grid mb-3">
+            <div class="stat-card">
+                <div class="stat-card-title">Deuda Total</div>
+                <div class="stat-card-value negativo">${formatearMoneda(resumen.totalDeuda)}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-title">Cuota Mensual Total</div>
+                <div class="stat-card-value">${formatearMoneda(resumen.cuotaMensualTotal)}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-title">Deudas Activas</div>
+                <div class="stat-card-value">${resumen.cantidadActivas}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-title">Progreso de Pago</div>
+                <div class="stat-card-value">${resumen.progresoPago}%</div>
+            </div>
+        </div>
+    `;
+
+    // Gráfico de progreso
+    html += `<div id="container-progreso-deudas" class="mb-3"></div>`;
+
+    if (resumen.deudas.length === 0) {
+        html += `
+            <div class="card">
+                <div class="card-body">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎉</div>
+                        <h3>¡Sin deudas!</h3>
+                        <p>No tienes deudas activas registradas.</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else {
+        html += `
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Listado de Deudas</span>
+                </div>
+                <div class="card-body no-padding">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Deuda</th>
+                                <th>Acreedor</th>
+                                <th class="text-right">Saldo</th>
+                                <th class="text-right">Cuota</th>
+                                <th>Próximo Pago</th>
+                                <th>Progreso</th>
+                                <th class="text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        `;
+
+        for (const deuda of resumen.deudas) {
+            const progreso = deuda.montoOriginal > 0
+                ? Math.round((deuda.montoOriginal - deuda.saldoPendiente) / deuda.montoOriginal * 100)
+                : 0;
+            const tipoInfo = TIPOS_PRESTAMO[deuda.tipo] || TIPOS_PRESTAMO.otro;
+
+            html += `
+                <tr>
+                    <td>
+                        <span>${tipoInfo.icono}</span>
+                        <strong>${deuda.nombre}</strong>
+                    </td>
+                    <td>${deuda.acreedor || '-'}</td>
+                    <td class="text-right monto negativo">${formatearMoneda(deuda.saldoPendiente)}</td>
+                    <td class="text-right monto">${formatearMoneda(deuda.cuotaMensual)}</td>
+                    <td>${deuda.fechaProximoPago ? formatearFecha(deuda.fechaProximoPago) : '-'}</td>
+                    <td>
+                        <div class="mini-progreso">
+                            <div class="mini-progreso-fill" style="width: ${progreso}%"></div>
+                        </div>
+                        <span class="text-muted">${progreso}%</span>
+                    </td>
+                    <td class="text-right acciones">
+                        <button class="btn btn-sm btn-success" onclick="registrarPagoDeudaUI('${deuda.id}')" title="Registrar Pago">💰 Pagar</button>
+                        <button class="btn btn-icon btn-sm btn-outline" onclick="verDetalleDeuda('${deuda.id}')" title="Ver detalle">👁</button>
+                        <button class="btn btn-icon btn-sm btn-outline" onclick="eliminarDeudaUI('${deuda.id}')" title="Eliminar">✕</button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    contenedor.innerHTML = html;
+
+    // Renderizar gráfico de progreso
+    if (resumen.deudas.length > 0) {
+        renderProgresoDeudas('container-progreso-deudas', resumen);
+    }
+}
+
+function abrirFormularioDeuda(deudaId = null) {
+    document.getElementById('modal-form-titulo').textContent = deudaId ? 'Editar Deuda' : 'Nueva Deuda';
+
+    const html = `
+        <form id="form-deuda">
+            <input type="hidden" id="deuda-id" value="${deudaId || ''}">
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Nombre <span class="required">*</span></label>
+                    <input type="text" class="form-control" id="deuda-nombre" required placeholder="Ej: Préstamo Itaú">
+                </div>
+                <div class="form-group">
+                    <label>Tipo</label>
+                    <select class="form-control" id="deuda-tipo">
+                        ${Object.entries(TIPOS_PRESTAMO).map(([id, info]) =>
+                            `<option value="${id}">${info.icono} ${info.nombre}</option>`
+                        ).join('')}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Acreedor</label>
+                    <input type="text" class="form-control" id="deuda-acreedor" placeholder="Ej: Banco Itaú">
+                </div>
+                <div class="form-group">
+                    <label>Prioridad</label>
+                    <select class="form-control" id="deuda-prioridad">
+                        ${Object.entries(PRIORIDADES_PAGO).map(([p, info]) =>
+                            `<option value="${p}" ${p === '5' ? 'selected' : ''}>${info.icono} ${info.nombre}</option>`
+                        ).join('')}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Monto Original <span class="required">*</span></label>
+                    <input type="number" class="form-control" id="deuda-monto" required min="1" placeholder="10000000">
+                </div>
+                <div class="form-group">
+                    <label>Saldo Pendiente <span class="required">*</span></label>
+                    <input type="number" class="form-control" id="deuda-saldo" required min="0" placeholder="8000000">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Cuota Mensual <span class="required">*</span></label>
+                    <input type="number" class="form-control" id="deuda-cuota" required min="1" placeholder="500000">
+                </div>
+                <div class="form-group">
+                    <label>Total de Cuotas</label>
+                    <input type="number" class="form-control" id="deuda-cuotas-total" min="1" placeholder="24">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Fecha Inicio</label>
+                    <input type="date" class="form-control" id="deuda-fecha-inicio">
+                </div>
+                <div class="form-group">
+                    <label>Próximo Pago</label>
+                    <input type="date" class="form-control" id="deuda-proximo-pago">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Notas</label>
+                <textarea class="form-control" id="deuda-notas" rows="2" placeholder="Notas adicionales..."></textarea>
+            </div>
+        </form>
+    `;
+
+    document.getElementById('modal-form-contenido').innerHTML = html;
+    document.getElementById('modal-form-guardar').onclick = guardarDeudaUI;
+    abrirModal('modal-formulario');
+}
+
+async function guardarDeudaUI() {
+    const id = document.getElementById('deuda-id').value;
+    const datos = {
+        nombre: document.getElementById('deuda-nombre').value.trim(),
+        tipo: document.getElementById('deuda-tipo').value,
+        acreedor: document.getElementById('deuda-acreedor').value.trim(),
+        prioridad: parseInt(document.getElementById('deuda-prioridad').value),
+        montoOriginal: parseInt(document.getElementById('deuda-monto').value),
+        saldoPendiente: parseInt(document.getElementById('deuda-saldo').value),
+        cuotaMensual: parseInt(document.getElementById('deuda-cuota').value),
+        totalCuotas: parseInt(document.getElementById('deuda-cuotas-total').value) || null,
+        fechaInicio: document.getElementById('deuda-fecha-inicio').value || null,
+        fechaProximoPago: document.getElementById('deuda-proximo-pago').value || null,
+        notas: document.getElementById('deuda-notas').value.trim()
+    };
+
+    if (!datos.nombre || !datos.montoOriginal || !datos.cuotaMensual) {
+        mostrarToast('Complete los campos requeridos', 'error');
+        return;
+    }
+
+    try {
+        if (id) {
+            await actualizar(`${moduloActual}_deudas`, id, datos);
+            mostrarToast('Deuda actualizada', 'exito');
+        } else {
+            await crearDeuda(moduloActual, datos);
+            mostrarToast('Deuda registrada', 'exito');
+        }
+        cerrarModal('modal-formulario');
+        cargarSeccion('deudas');
+    } catch (error) {
+        mostrarToast(error.message || 'Error al guardar', 'error');
+    }
+}
+
+async function registrarPagoDeudaUI(deudaId) {
+    const deuda = await obtenerPorId(`${moduloActual}_deudas`, deudaId);
+    if (!deuda) return;
+
+    document.getElementById('modal-form-titulo').textContent = 'Registrar Pago de Deuda';
+
+    const html = `
+        <form id="form-pago-deuda">
+            <input type="hidden" id="pago-deuda-id" value="${deudaId}">
+
+            <div class="alert alert-info mb-3">
+                <strong>${deuda.nombre}</strong><br>
+                Cuota mensual: ${formatearMoneda(deuda.cuotaMensual)}<br>
+                Saldo pendiente: ${formatearMoneda(deuda.saldoPendiente)}
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Monto a Pagar <span class="required">*</span></label>
+                    <input type="number" class="form-control" id="pago-monto" value="${deuda.cuotaMensual}" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Fecha</label>
+                    <input type="date" class="form-control" id="pago-fecha" value="${formatearFechaInput(new Date())}">
+                </div>
+            </div>
+        </form>
+    `;
+
+    document.getElementById('modal-form-contenido').innerHTML = html;
+    document.getElementById('modal-form-guardar').onclick = async () => {
+        const monto = parseInt(document.getElementById('pago-monto').value);
+        const fecha = document.getElementById('pago-fecha').value;
+
+        if (!monto) {
+            mostrarToast('Ingrese el monto', 'error');
+            return;
+        }
+
+        try {
+            await registrarPagoDeuda(moduloActual, deudaId, { monto, fecha });
+            mostrarToast('Pago registrado', 'exito');
+            cerrarModal('modal-formulario');
+            cargarSeccion('deudas');
+        } catch (error) {
+            mostrarToast(error.message || 'Error al registrar pago', 'error');
+        }
+    };
+
+    abrirModal('modal-formulario');
+}
+
+async function verDetalleDeuda(deudaId) {
+    const deuda = await obtenerPorId(`${moduloActual}_deudas`, deudaId);
+    if (!deuda) return;
+
+    const tipoInfo = TIPOS_PRESTAMO[deuda.tipo] || TIPOS_PRESTAMO.otro;
+    const progreso = deuda.montoOriginal > 0
+        ? Math.round((deuda.montoOriginal - deuda.saldoPendiente) / deuda.montoOriginal * 100)
+        : 0;
+
+    let html = `
+        <div class="detalle-deuda">
+            <div class="detalle-header">
+                <h3>${tipoInfo.icono} ${deuda.nombre}</h3>
+                <span class="badge badge-${deuda.estado === 'pagado' ? 'pagado' : 'pendiente'}">${capitalizar(deuda.estado)}</span>
+            </div>
+
+            <div class="stats-grid mb-3">
+                <div class="stat-card">
+                    <div class="stat-card-title">Monto Original</div>
+                    <div class="stat-card-value">${formatearMoneda(deuda.montoOriginal)}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-title">Saldo Pendiente</div>
+                    <div class="stat-card-value negativo">${formatearMoneda(deuda.saldoPendiente)}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-title">Total Pagado</div>
+                    <div class="stat-card-value positivo">${formatearMoneda(deuda.montoOriginal - deuda.saldoPendiente)}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-title">Progreso</div>
+                    <div class="stat-card-value">${progreso}%</div>
+                </div>
+            </div>
+
+            <h4>Historial de Pagos</h4>
+    `;
+
+    if (deuda.historialPagos && deuda.historialPagos.length > 0) {
+        html += `<table class="table"><thead><tr><th>Fecha</th><th>Cuota #</th><th class="text-right">Monto</th></tr></thead><tbody>`;
+        for (const pago of deuda.historialPagos) {
+            html += `<tr><td>${formatearFecha(pago.fecha)}</td><td>${pago.cuotaNumero}</td><td class="text-right monto">${formatearMoneda(pago.monto)}</td></tr>`;
+        }
+        html += `</tbody></table>`;
+    } else {
+        html += `<p class="text-muted">Sin pagos registrados</p>`;
+    }
+
+    html += `</div>`;
+
+    document.getElementById('modal-form-titulo').textContent = 'Detalle de Deuda';
+    document.getElementById('modal-form-contenido').innerHTML = html;
+    document.getElementById('modal-form-guardar').style.display = 'none';
+    abrirModal('modal-formulario');
+
+    // Restaurar botón guardar cuando se cierre
+    document.getElementById('modal-formulario').addEventListener('click', function handler(e) {
+        if (e.target.classList.contains('modal-overlay') || e.target.classList.contains('btn-secondary')) {
+            document.getElementById('modal-form-guardar').style.display = '';
+            e.currentTarget.removeEventListener('click', handler);
+        }
+    });
+}
+
+async function eliminarDeudaUI(id) {
+    const confirmado = await confirmarAccion('Eliminar Deuda', '¿Está seguro de eliminar esta deuda?');
+    if (!confirmado) return;
+
+    try {
+        await softDelete(`${moduloActual}_deudas`, id);
+        mostrarToast('Deuda eliminada', 'exito');
+        cargarSeccion('deudas');
+    } catch (error) {
+        mostrarToast(error.message || 'Error al eliminar', 'error');
+    }
+}
+
+// ==========================================
+// ANÁLISIS FINANCIERO
+// ==========================================
+
+async function renderAnalisis(contenedor) {
+    const { año, mes } = mesVisualizacion;
+
+    // Cargar todos los datos necesarios
+    const diasOxigeno = await calcularDiasOxigeno(moduloActual);
+    const liquidez = await calcularLiquidezSemanal(moduloActual);
+    const resumen = await calcularResumenMes(moduloActual, año, mes);
+    const cumplimiento = await calcularCumplimientoPresupuestoConSemaforo(moduloActual, año, mes);
+    const resumenDeudas = await obtenerResumenDeudas(moduloActual);
+
+    // Datos anuales para gráfico de evolución
+    const datosAnuales = [];
+    for (let m = 1; m <= 12; m++) {
+        const res = await calcularResumenMes(moduloActual, año, m);
+        datosAnuales.push({ mes: m, ingresos: res.totalIngresos, egresos: res.totalEgresos });
+    }
+
+    let html = `
+        <div class="analisis-container">
+            <!-- Sección Semanal -->
+            <h2 class="seccion-titulo">📅 Análisis Semanal</h2>
+            <div class="dashboard-grid mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Días de Oxígeno</span>
+                    </div>
+                    <div class="card-body">
+                        <div id="container-dias-oxigeno"></div>
+                    </div>
+                </div>
+                <div class="card card-ancha">
+                    <div class="card-header">
+                        <span class="card-title">Pagos de las Próximas 2 Semanas</span>
+                    </div>
+                    <div class="card-body">
+                        <div id="container-pagos-semanales"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sección Mensual -->
+            <h2 class="seccion-titulo">📊 Análisis Mensual - ${getNombreMes(mes)} ${año}</h2>
+            <div class="dashboard-grid mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Ingresos vs Egresos</span>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="chart-ingresos-egresos" height="250"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Composición de Gastos</span>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="chart-composicion" height="250"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-grid mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Gastos por Categoría</span>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="chart-categorias" height="300"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Cumplimiento de Presupuesto</span>
+                    </div>
+                    <div class="card-body">
+                        <div id="container-presupuesto"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sección Anual -->
+            <h2 class="seccion-titulo">📈 Análisis Anual - ${año}</h2>
+            <div class="card mb-4">
+                <div class="card-header">
+                    <span class="card-title">Evolución Mensual</span>
+                </div>
+                <div class="card-body">
+                    <canvas id="chart-evolucion" height="300"></canvas>
+                </div>
+            </div>
+
+            <div class="dashboard-grid mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Progreso de Deudas</span>
+                    </div>
+                    <div class="card-body">
+                        <div id="container-deudas"></div>
+                    </div>
+                </div>
+    `;
+
+    // Si es NeuroTEA, agregar indicador 93/7
+    if (moduloActual === 'neurotea') {
+        const saludNT = await calcularSaludNT(año, mes);
+        html += `
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Modelo 93/7</span>
+                    </div>
+                    <div class="card-body">
+                        <div id="container-modelo-93-7"></div>
+                    </div>
+                </div>
+        `;
+    }
+
+    html += `
+            </div>
+        </div>
+    `;
+
+    contenedor.innerHTML = html;
+
+    // Renderizar todos los gráficos
+    renderBateriaDiasOxigeno('container-dias-oxigeno', diasOxigeno.diasOxigeno);
+    renderTablaPagosSemanales('container-pagos-semanales', liquidez);
+    renderIngresosVsEgresos('chart-ingresos-egresos', resumen.totalIngresos, resumen.totalEgresos);
+    renderComposicionGastos('chart-composicion', resumen.egresosPorTipo);
+    renderBarrasCategoria('chart-categorias', resumen.egresosPorCategoria, 'Top 10 Categorías de Gasto');
+    renderTablaPresupuesto('container-presupuesto', cumplimiento);
+    renderEvolucionMensual('chart-evolucion', datosAnuales);
+    renderProgresoDeudas('container-deudas', resumenDeudas);
+
+    if (moduloActual === 'neurotea') {
+        const saludNT = await calcularSaludNT(año, mes);
+        renderModelo93_7('container-modelo-93-7', saludNT);
+    }
+}

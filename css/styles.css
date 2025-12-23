@@ -1581,3 +1581,597 @@ textarea.form-control {
 .form-section-title:first-child {
     margin-top: 0;
 }
+
+/* ==========================================
+   PANEL DE ANÁLISIS - DASHBOARD FINANCIERO
+   ========================================== */
+
+.analisis-container {
+    padding: 0;
+}
+
+.seccion-titulo {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--gris-800);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.card-ancha {
+    grid-column: span 2;
+}
+
+@media (max-width: 768px) {
+    .card-ancha {
+        grid-column: span 1;
+    }
+}
+
+/* ==========================================
+   INDICADOR DE DÍAS DE OXÍGENO (BATERÍA)
+   ========================================== */
+
+.indicador-bateria {
+    text-align: center;
+    padding: 20px;
+}
+
+.bateria-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.bateria-titulo {
+    font-size: 14px;
+    color: var(--gris-600);
+}
+
+.bateria-dias {
+    font-size: 28px;
+    font-weight: 700;
+}
+
+.bateria-contenedor {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 20px 0;
+}
+
+.bateria-cuerpo {
+    width: 80px;
+    height: 180px;
+    border: 4px solid var(--gris-400);
+    border-radius: 8px;
+    position: relative;
+    display: flex;
+    flex-direction: column-reverse;
+    overflow: hidden;
+    background: var(--gris-100);
+}
+
+.bateria-tapa {
+    width: 40px;
+    height: 10px;
+    background: var(--gris-400);
+    border-radius: 4px 4px 0 0;
+    margin-bottom: -2px;
+}
+
+.bateria-nivel {
+    width: 100%;
+    transition: height 0.5s ease;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    border-radius: 0 0 4px 4px;
+}
+
+.bateria-porcentaje {
+    color: white;
+    font-weight: 700;
+    font-size: 18px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    padding: 8px;
+}
+
+.bateria-descripcion {
+    font-size: 13px;
+    color: var(--gris-500);
+    margin-top: 12px;
+}
+
+.bateria-excelente .bateria-dias { color: #10B981; }
+.bateria-buena .bateria-dias { color: #22C55E; }
+.bateria-alerta .bateria-dias { color: #F59E0B; }
+.bateria-critica .bateria-dias { color: #EF4444; }
+
+/* ==========================================
+   TABLA DE PAGOS SEMANALES
+   ========================================== */
+
+.tabla-pagos-container {
+    font-size: 13px;
+}
+
+.resumen-liquidez {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    background: var(--gris-100);
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.liquidez-ok {
+    background: #D1FAE5;
+    border: 1px solid #10B981;
+}
+
+.liquidez-critica {
+    background: #FEE2E2;
+    border: 1px solid #EF4444;
+}
+
+.liquidez-caja .label {
+    font-size: 12px;
+    color: var(--gris-500);
+}
+
+.liquidez-caja .valor {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--gris-800);
+}
+
+.liquidez-indicador {
+    font-weight: 600;
+}
+
+.seccion-pagos {
+    margin-bottom: 16px;
+}
+
+.seccion-pagos h4 {
+    font-size: 14px;
+    margin-bottom: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--borde);
+}
+
+.tabla-pagos {
+    width: 100%;
+    font-size: 13px;
+}
+
+.tabla-pagos th,
+.tabla-pagos td {
+    padding: 8px 12px;
+    text-align: left;
+}
+
+.tabla-pagos th {
+    background: var(--gris-50);
+    font-weight: 600;
+    color: var(--gris-600);
+}
+
+.pago-atrasado {
+    background: #FEF2F2;
+}
+
+.sin-pagos {
+    color: var(--gris-500);
+    font-style: italic;
+    padding: 12px 0;
+}
+
+.proyeccion-saldo {
+    padding: 16px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+}
+
+.saldo-positivo {
+    background: #D1FAE5;
+    border: 1px solid #10B981;
+}
+
+.saldo-positivo .valor {
+    color: #059669;
+}
+
+.saldo-negativo {
+    background: #FEE2E2;
+    border: 1px solid #EF4444;
+}
+
+.saldo-negativo .valor {
+    color: #DC2626;
+}
+
+.proyeccion-saldo .valor {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.badge-prioridad {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    white-space: nowrap;
+}
+
+.badge-prioridad.p1 { background: #FEE2E2; color: #991B1B; }
+.badge-prioridad.p2 { background: #FEF3C7; color: #92400E; }
+.badge-prioridad.p3 { background: #DBEAFE; color: #1E40AF; }
+.badge-prioridad.p4 { background: #E0E7FF; color: #3730A3; }
+.badge-prioridad.p5 { background: #D1FAE5; color: #065F46; }
+.badge-prioridad.p6 { background: var(--gris-200); color: var(--gris-700); }
+
+.badge-estado {
+    font-size: 16px;
+}
+
+.estado-ninguno { color: var(--gris-400); }
+.estado-pendiente { color: #F59E0B; }
+.estado-pagado { color: #10B981; }
+.estado-cancelado { color: #EF4444; }
+
+/* ==========================================
+   TABLA DE PRESUPUESTO CON SEMÁFOROS
+   ========================================== */
+
+.presupuesto-container {
+    font-size: 13px;
+}
+
+.presupuesto-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--borde);
+}
+
+.presupuesto-header h3 {
+    font-size: 16px;
+}
+
+.presupuesto-totales {
+    display: flex;
+    gap: 24px;
+    font-size: 12px;
+    color: var(--gris-600);
+}
+
+.tabla-presupuesto {
+    width: 100%;
+}
+
+.tabla-presupuesto th,
+.tabla-presupuesto td {
+    padding: 10px 12px;
+    text-align: left;
+}
+
+.tabla-presupuesto th {
+    background: var(--gris-50);
+    font-weight: 600;
+    color: var(--gris-600);
+    font-size: 12px;
+}
+
+.tabla-presupuesto .monto {
+    text-align: right;
+    font-family: var(--fuente-mono);
+}
+
+.tabla-presupuesto .porcentaje {
+    text-align: right;
+    font-weight: 600;
+}
+
+.tabla-presupuesto .semaforo {
+    text-align: center;
+    font-size: 18px;
+}
+
+.fila-excedida {
+    background: #FEF2F2;
+}
+
+.fila-alerta {
+    background: #FFFBEB;
+}
+
+.tabla-presupuesto .negativo {
+    color: #DC2626;
+}
+
+/* ==========================================
+   PROGRESO DE DEUDAS
+   ========================================== */
+
+.deudas-container {
+    font-size: 13px;
+}
+
+.deudas-resumen {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.deudas-resumen .resumen-item {
+    text-align: center;
+    padding: 12px;
+    background: var(--gris-50);
+    border-radius: 8px;
+}
+
+.deudas-resumen .label {
+    font-size: 11px;
+    color: var(--gris-500);
+    text-transform: uppercase;
+}
+
+.deudas-resumen .valor {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--gris-800);
+}
+
+.deudas-resumen .valor.negativo {
+    color: #DC2626;
+}
+
+.deudas-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.deuda-item {
+    padding: 16px;
+    background: var(--gris-50);
+    border-radius: 8px;
+    border-left: 4px solid var(--primario);
+}
+
+.deuda-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.deuda-nombre {
+    font-weight: 600;
+    color: var(--gris-800);
+}
+
+.deuda-saldo {
+    font-weight: 700;
+    color: #DC2626;
+}
+
+.progreso-barra {
+    height: 8px;
+    background: var(--gris-200);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.progreso-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10B981, #059669);
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+.deuda-footer {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--gris-500);
+}
+
+.mini-progreso {
+    width: 60px;
+    height: 6px;
+    background: var(--gris-200);
+    border-radius: 3px;
+    overflow: hidden;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+.mini-progreso-fill {
+    height: 100%;
+    background: #10B981;
+    border-radius: 3px;
+}
+
+/* ==========================================
+   MODELO 93/7 (NEUROTEA)
+   ========================================== */
+
+.modelo-93-7-container {
+    padding: 16px 0;
+}
+
+.modelo-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.modelo-header h3 {
+    font-size: 16px;
+    color: var(--gris-800);
+}
+
+.estado-badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    color: white;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.modelo-barras {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.modelo-barra {
+    padding: 0 4px;
+}
+
+.barra-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 13px;
+}
+
+.texto-verde { color: #10B981; }
+.texto-rojo { color: #EF4444; }
+
+.barra-contenedor {
+    height: 24px;
+    background: var(--gris-200);
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+}
+
+.barra-limite {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--gris-600);
+    z-index: 2;
+}
+
+.barra-fill {
+    height: 100%;
+    border-radius: 12px;
+    transition: width 0.5s ease;
+}
+
+.fill-verde { background: linear-gradient(90deg, #10B981, #059669); }
+.fill-rojo { background: linear-gradient(90deg, #F87171, #DC2626); }
+
+.barra-meta {
+    font-size: 11px;
+    color: var(--gris-500);
+    margin-top: 4px;
+}
+
+.fuga-indicador {
+    margin-top: 20px;
+    padding: 12px;
+    background: #FEF3C7;
+    border: 1px solid #F59E0B;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fuga-icono {
+    font-size: 20px;
+}
+
+.fuga-texto {
+    font-size: 13px;
+    color: #92400E;
+}
+
+/* ==========================================
+   MINI RESUMEN DASHBOARD
+   ========================================== */
+
+.mini-resumen {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+.mini-card {
+    padding: 16px;
+    background: var(--gris-50);
+    border-radius: 8px;
+    text-align: center;
+    border: 2px solid transparent;
+}
+
+.mini-card .mini-label {
+    font-size: 11px;
+    color: var(--gris-500);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+
+.mini-card .mini-valor {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--gris-800);
+}
+
+.mini-card.ingresos { border-color: #10B981; }
+.mini-card.egresos { border-color: #EF4444; }
+.mini-card.positivo { border-color: #10B981; }
+.mini-card.negativo { border-color: #EF4444; }
+
+@media (max-width: 768px) {
+    .mini-resumen {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* ==========================================
+   ESTILOS ADICIONALES PARA GASTOS FIJOS
+   ========================================== */
+
+.actions-bar {
+    display: flex;
+    justify-content: flex-start;
+    gap: 12px;
+}
+
+/* ==========================================
+   RESPONSIVE PARA ANÁLISIS
+   ========================================== */
+
+@media (max-width: 992px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .card-ancha {
+        grid-column: span 1;
+    }
+
+    .deudas-resumen {
+        grid-template-columns: 1fr;
+    }
+}
