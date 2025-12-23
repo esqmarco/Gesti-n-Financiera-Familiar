@@ -5,7 +5,7 @@
 
 // Estado global
 let moduloActual = null;
-let seccionActual = 'dashboard';
+let seccionActual = 'cargar';
 let mesVisualizacion = getMesActual();
 
 // ==========================================
@@ -71,7 +71,7 @@ async function verificarAlertaRespaldo() {
 
 function abrirModulo(modulo) {
     moduloActual = modulo;
-    seccionActual = 'dashboard';
+    seccionActual = 'cargar';
     mesVisualizacion = getMesActual();
 
     // Ocultar inicio, mostrar app
@@ -144,12 +144,19 @@ async function cargarSeccion(seccion) {
     document.getElementById('header-titulo').textContent = getTituloSeccion(seccion);
 
     switch (seccion) {
-        case 'dashboard': await renderDashboard(contenedor); break;
+        // Pestañas principales (nueva arquitectura)
+        case 'cargar': await renderCargar(contenedor); break;
+        case 'presupuesto': await renderPresupuestoExcel(contenedor); break;
+        case 'dashboard': await renderDashboardInteligente(contenedor); break;
+        case 'configurar': await renderConfigurar(contenedor); break;
+
+        // Accesos rápidos
         case 'movimientos': await renderMovimientos(contenedor); break;
-        case 'presupuesto': await renderPresupuesto(contenedor); break;
+        case 'cuentas': await renderCuentas(contenedor); break;
+
+        // Compatibilidad con secciones antiguas
         case 'gastos_fijos': await renderGastosFijos(contenedor); break;
         case 'deudas': await renderDeudas(contenedor); break;
-        case 'cuentas': await renderCuentas(contenedor); break;
         case 'prestamos': await renderPrestamos(contenedor); break;
         case 'metas': await renderMetas(contenedor); break;
         case 'analisis': await renderAnalisis(contenedor); break;
@@ -160,12 +167,19 @@ async function cargarSeccion(seccion) {
 
 function getTituloSeccion(seccion) {
     const titulos = {
-        dashboard: 'Dashboard',
-        movimientos: 'Movimientos',
-        presupuesto: 'Presupuesto',
+        // Nuevas secciones principales
+        cargar: 'Cargar Datos',
+        presupuesto: 'Presupuesto Anual',
+        dashboard: 'Panel de Control',
+        configurar: 'Configurar Sistema',
+
+        // Accesos rápidos
+        movimientos: 'Historial de Movimientos',
+        cuentas: 'Mis Cuentas',
+
+        // Compatibilidad
         gastos_fijos: 'Gastos Fijos',
         deudas: 'Deudas',
-        cuentas: 'Cuentas Bancarias',
         prestamos: 'Préstamos',
         metas: 'Metas de Ahorro',
         analisis: 'Análisis Financiero',
@@ -3538,5 +3552,631 @@ async function renderAnalisis(contenedor) {
     if (moduloActual === 'neurotea') {
         const saludNT = await calcularSaludNT(año, mes);
         renderModelo93_7('container-modelo-93-7', saludNT);
+    }
+}
+
+// ==========================================
+// NUEVAS SECCIONES PRINCIPALES
+// ==========================================
+
+// ==========================================
+// 1. CARGAR DATOS - Formulario único de entrada
+// ==========================================
+
+async function renderCargar(contenedor) {
+    const { año, mes } = mesVisualizacion;
+    const cuentas = await obtenerTodos(`${moduloActual}_cuentas`);
+    const cuentasActivas = cuentas.filter(c => c.activa !== false);
+
+    // Obtener categorías dinámicamente
+    let categoriasDB = await obtenerTodasCategorias(moduloActual);
+    if (categoriasDB.length === 0) {
+        await inicializarCategoriasPredeterminadas(moduloActual);
+        categoriasDB = await obtenerTodasCategorias(moduloActual);
+    }
+
+    // Agrupar categorías
+    const categoriasIngreso = categoriasDB.filter(c => c.tipo === 'ingreso' && c.activa !== false);
+    const categoriasEgreso = categoriasDB.filter(c => c.tipo === 'egreso' && c.activa !== false);
+
+    const egresosPorGrupo = {};
+    for (const cat of categoriasEgreso) {
+        const grupo = cat.tipoGasto || 'variables';
+        if (!egresosPorGrupo[grupo]) egresosPorGrupo[grupo] = [];
+        egresosPorGrupo[grupo].push(cat);
+    }
+
+    const ingresosPorGrupo = {};
+    for (const cat of categoriasIngreso) {
+        const grupo = cat.persona || 'principal';
+        if (!ingresosPorGrupo[grupo]) ingresosPorGrupo[grupo] = [];
+        ingresosPorGrupo[grupo].push(cat);
+    }
+
+    const tiposGasto = getTiposGasto(moduloActual);
+
+    let html = `
+        <div class="cargar-container">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="tipo-selector">
+                        <button class="tipo-btn active" data-tipo="ingreso" onclick="cambiarTipoCargar('ingreso')">
+                            <span class="tipo-icono ingreso">↑</span>
+                            <span>Ingreso</span>
+                        </button>
+                        <button class="tipo-btn" data-tipo="egreso" onclick="cambiarTipoCargar('egreso')">
+                            <span class="tipo-icono egreso">↓</span>
+                            <span>Egreso</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title" id="cargar-titulo">Registrar Ingreso</span>
+                </div>
+                <div class="card-body">
+                    <form id="form-cargar" onsubmit="guardarMovimientoRapido(event)">
+                        <input type="hidden" id="cargar-tipo" value="ingreso">
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Fecha <span class="required">*</span></label>
+                                <input type="date" class="form-control" id="cargar-fecha" value="${formatearFechaInput(new Date())}" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Monto (Gs.) <span class="required">*</span></label>
+                                <input type="number" class="form-control" id="cargar-monto" min="1" required placeholder="0">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group" id="grupo-persona-container">
+                                <label id="label-grupo-persona">${moduloActual === 'familia' ? 'Persona' : 'Grupo'}</label>
+                                <select class="form-control" id="cargar-grupo" onchange="actualizarCategoriasCargar()">
+                                    ${generarOpcionesGrupoIngreso(ingresosPorGrupo)}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Categoría <span class="required">*</span></label>
+                                <select class="form-control" id="cargar-categoria" required>
+                                    ${generarOpcionesCategorias(categoriasIngreso)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Cuenta</label>
+                            <select class="form-control" id="cargar-cuenta">
+                                <option value="">Sin especificar</option>
+                                ${cuentasActivas.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('')}
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Descripción (opcional)</label>
+                            <input type="text" class="form-control" id="cargar-descripcion" placeholder="Nota o detalle">
+                        </div>
+
+                        <div class="form-group" id="estado-pago-container" style="display: none;">
+                            <label>Estado de Pago</label>
+                            <div class="estado-selector">
+                                <label class="estado-option">
+                                    <input type="radio" name="cargar-estado" value="pendiente">
+                                    <span class="estado-badge pendiente">Pendiente</span>
+                                </label>
+                                <label class="estado-option">
+                                    <input type="radio" name="cargar-estado" value="pagado" checked>
+                                    <span class="estado-badge pagado">Pagado</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-secondary" onclick="limpiarFormularioCargar()">Limpiar</button>
+                            <button type="submit" class="btn btn-primary">
+                                <span id="btn-cargar-texto">Guardar Ingreso</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card mt-4">
+                <div class="card-header">
+                    <span class="card-title">Movimientos de Hoy</span>
+                    <button class="btn btn-sm btn-outline" onclick="cambiarSeccion('movimientos')">Ver todos</button>
+                </div>
+                <div class="card-body" id="movimientos-hoy"></div>
+            </div>
+        </div>
+    `;
+
+    contenedor.innerHTML = html;
+
+    window._datosCargar = { categoriasIngreso, categoriasEgreso, ingresosPorGrupo, egresosPorGrupo, tiposGasto };
+    await cargarMovimientosHoy();
+}
+
+function generarOpcionesGrupoIngreso(grupos) {
+    const nombres = { marco: 'Marco', clara: 'Clara', desde_nt: 'Desde NeuroTEA', principal: 'Principal', otro: 'Otro' };
+    return Object.keys(grupos).map(g => `<option value="${g}">${nombres[g] || capitalizar(g)}</option>`).join('');
+}
+
+function generarOpcionesGrupoEgreso(tiposGasto) {
+    return Object.entries(tiposGasto).map(([k, v]) => `<option value="${k}">${v.icono} ${v.nombre}</option>`).join('');
+}
+
+function generarOpcionesCategorias(categorias) {
+    return categorias.map(c => `<option value="${c.identificador}">${c.nombre}</option>`).join('');
+}
+
+function cambiarTipoCargar(tipo) {
+    const datos = window._datosCargar;
+    if (!datos) return;
+
+    document.querySelectorAll('.tipo-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tipo === tipo));
+    document.getElementById('cargar-tipo').value = tipo;
+    document.getElementById('cargar-titulo').textContent = tipo === 'ingreso' ? 'Registrar Ingreso' : 'Registrar Egreso';
+    document.getElementById('btn-cargar-texto').textContent = tipo === 'ingreso' ? 'Guardar Ingreso' : 'Guardar Egreso';
+
+    const labelGrupo = document.getElementById('label-grupo-persona');
+    const selectGrupo = document.getElementById('cargar-grupo');
+    const estadoContainer = document.getElementById('estado-pago-container');
+
+    if (tipo === 'ingreso') {
+        labelGrupo.textContent = moduloActual === 'familia' ? 'Persona' : 'Grupo';
+        selectGrupo.innerHTML = generarOpcionesGrupoIngreso(datos.ingresosPorGrupo);
+        estadoContainer.style.display = 'none';
+    } else {
+        labelGrupo.textContent = 'Tipo de Gasto';
+        selectGrupo.innerHTML = generarOpcionesGrupoEgreso(datos.tiposGasto);
+        estadoContainer.style.display = 'block';
+    }
+    actualizarCategoriasCargar();
+}
+
+function actualizarCategoriasCargar() {
+    const datos = window._datosCargar;
+    if (!datos) return;
+    const tipo = document.getElementById('cargar-tipo').value;
+    const grupo = document.getElementById('cargar-grupo').value;
+    const categorias = tipo === 'ingreso' ? (datos.ingresosPorGrupo[grupo] || []) : (datos.egresosPorGrupo[grupo] || []);
+    document.getElementById('cargar-categoria').innerHTML = generarOpcionesCategorias(categorias);
+}
+
+async function guardarMovimientoRapido(event) {
+    event.preventDefault();
+    const tipo = document.getElementById('cargar-tipo').value;
+    const fecha = document.getElementById('cargar-fecha').value;
+    const monto = parseInt(document.getElementById('cargar-monto').value);
+    const categoria = document.getElementById('cargar-categoria').value;
+    const cuenta = document.getElementById('cargar-cuenta').value;
+    const descripcion = document.getElementById('cargar-descripcion').value;
+    const grupo = document.getElementById('cargar-grupo').value;
+
+    if (!fecha || !monto || monto <= 0 || !categoria) {
+        mostrarToast('Complete todos los campos requeridos', 'error');
+        return;
+    }
+
+    try {
+        const datos = { fecha, monto, categoria, descripcion: sanitizarTexto(descripcion) };
+
+        if (tipo === 'ingreso') {
+            datos.cuentaDestino = cuenta || null;
+            if (moduloActual === 'familia') datos.persona = grupo;
+            await crear(`${moduloActual}_ingresos`, datos);
+        } else {
+            datos.cuentaOrigen = cuenta || null;
+            datos.tipoGasto = grupo;
+            const estadoRadio = document.querySelector('input[name="cargar-estado"]:checked');
+            datos.estado = estadoRadio ? estadoRadio.value : 'pagado';
+            await crear(`${moduloActual}_egresos`, datos);
+        }
+
+        mostrarToast(`${tipo === 'ingreso' ? 'Ingreso' : 'Egreso'} registrado`, 'exito');
+        document.getElementById('cargar-monto').value = '';
+        document.getElementById('cargar-descripcion').value = '';
+        document.getElementById('cargar-monto').focus();
+        await cargarMovimientosHoy();
+    } catch (error) {
+        mostrarToast('Error al guardar', 'error');
+    }
+}
+
+function limpiarFormularioCargar() {
+    document.getElementById('cargar-monto').value = '';
+    document.getElementById('cargar-descripcion').value = '';
+    document.getElementById('cargar-fecha').value = formatearFechaInput(new Date());
+}
+
+async function cargarMovimientosHoy() {
+    const hoy = formatearFechaInput(new Date());
+    const ingresos = await obtenerTodos(`${moduloActual}_ingresos`);
+    const egresos = await obtenerTodos(`${moduloActual}_egresos`);
+
+    const movs = [
+        ...ingresos.filter(i => i.fecha === hoy).map(i => ({ ...i, tipo: 'ingreso' })),
+        ...egresos.filter(e => e.fecha === hoy).map(e => ({ ...e, tipo: 'egreso' }))
+    ].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+    const container = document.getElementById('movimientos-hoy');
+    if (movs.length === 0) {
+        container.innerHTML = '<div class="empty-state-small"><p>No hay movimientos hoy</p></div>';
+        return;
+    }
+
+    let html = '<div class="movimientos-lista-mini">';
+    for (const m of movs) {
+        html += `<div class="movimiento-item-mini ${m.tipo}">
+            <div class="movimiento-info"><span class="movimiento-icono">${m.tipo === 'ingreso' ? '↑' : '↓'}</span>
+            <span>${getNombreCategoria(m.categoria)}</span></div>
+            <span class="movimiento-monto ${m.tipo === 'ingreso' ? 'positivo' : 'negativo'}">${m.tipo === 'ingreso' ? '+' : '-'}${formatearMoneda(m.monto)}</span>
+        </div>`;
+    }
+    html += '</div>';
+
+    const totI = movs.filter(m => m.tipo === 'ingreso').reduce((s, m) => s + m.monto, 0);
+    const totE = movs.filter(m => m.tipo === 'egreso').reduce((s, m) => s + m.monto, 0);
+    html += `<div class="resumen-dia"><span class="positivo">+${formatearMoneda(totI)}</span><span class="negativo">-${formatearMoneda(totE)}</span><span class="${totI - totE >= 0 ? 'positivo' : 'negativo'}">= ${formatearMoneda(totI - totE)}</span></div>`;
+    container.innerHTML = html;
+}
+
+// ==========================================
+// 2. PRESUPUESTO EXCEL - Vista tipo hoja de cálculo
+// ==========================================
+
+async function renderPresupuestoExcel(contenedor) {
+    const año = mesVisualizacion.año;
+
+    let categoriasDB = await obtenerTodasCategorias(moduloActual);
+    if (categoriasDB.length === 0) {
+        await inicializarCategoriasPredeterminadas(moduloActual);
+        categoriasDB = await obtenerTodasCategorias(moduloActual);
+    }
+
+    const categoriasIngreso = categoriasDB.filter(c => c.tipo === 'ingreso' && c.activa !== false);
+    const categoriasEgreso = categoriasDB.filter(c => c.tipo === 'egreso' && c.activa !== false);
+
+    const datosMensuales = {};
+    for (let mes = 1; mes <= 12; mes++) {
+        datosMensuales[mes] = await calcularResumenMes(moduloActual, año, mes);
+    }
+
+    const tiposGasto = getTiposGasto(moduloActual);
+    const ingresosPorGrupo = {}, egresosPorGrupo = {};
+
+    for (const cat of categoriasIngreso) {
+        const g = cat.persona || 'principal';
+        if (!ingresosPorGrupo[g]) ingresosPorGrupo[g] = [];
+        ingresosPorGrupo[g].push(cat);
+    }
+    for (const cat of categoriasEgreso) {
+        const g = cat.tipoGasto || 'variables';
+        if (!egresosPorGrupo[g]) egresosPorGrupo[g] = [];
+        egresosPorGrupo[g].push(cat);
+    }
+
+    const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const nombresGI = { marco: 'MARCO', clara: 'CLARA', desde_nt: 'DESDE NEUROTEA', principal: 'INGRESOS', otro: 'OTROS' };
+
+    let html = `<div class="presupuesto-excel-container">
+        <div class="presupuesto-header">
+            <h3>PRESUPUESTO ${moduloActual.toUpperCase()} ${año}</h3>
+            <div class="presupuesto-controles">
+                <button class="btn btn-sm btn-outline" onclick="cambiarAnoPresupuesto(-1)">&lt; ${año - 1}</button>
+                <span class="ano-actual">${año}</span>
+                <button class="btn btn-sm btn-outline" onclick="cambiarAnoPresupuesto(1)">${año + 1} &gt;</button>
+            </div>
+        </div>
+        <div class="tabla-excel-wrapper">
+            <table class="tabla-excel">
+                <thead><tr class="header-meses"><th class="col-concepto">Concepto</th>
+                ${meses.map((m, i) => `<th class="col-mes ${i + 1 === mesVisualizacion.mes ? 'mes-actual' : ''}">${m}</th>`).join('')}
+                <th class="col-total">TOTAL</th></tr></thead>
+                <tbody>
+                <tr class="seccion-header ingreso"><td colspan="14">INGRESOS ${moduloActual.toUpperCase()}</td></tr>`;
+
+    let totalIA = 0;
+    for (const [grupo, cats] of Object.entries(ingresosPorGrupo)) {
+        html += `<tr class="grupo-header ingreso"><td colspan="14">${nombresGI[grupo] || grupo.toUpperCase()}</td></tr>`;
+        for (const cat of cats) {
+            let tc = 0;
+            html += `<tr class="fila-categoria"><td class="col-concepto">${cat.nombre}</td>`;
+            for (let m = 1; m <= 12; m++) {
+                const v = datosMensuales[m]?.ingresosPorCategoria?.[cat.identificador] || 0;
+                tc += v;
+                html += `<td class="col-mes ${m === mesVisualizacion.mes ? 'mes-actual' : ''}">${v > 0 ? formatearNumeroCorto(v) : '-'}</td>`;
+            }
+            totalIA += tc;
+            html += `<td class="col-total">${tc > 0 ? formatearNumeroCorto(tc) : '-'}</td></tr>`;
+        }
+    }
+
+    html += `<tr class="fila-total ingreso"><td class="col-concepto">TOTAL INGRESOS</td>`;
+    for (let m = 1; m <= 12; m++) html += `<td class="col-mes ${m === mesVisualizacion.mes ? 'mes-actual' : ''}">${formatearNumeroCorto(datosMensuales[m]?.totalIngresos || 0)}</td>`;
+    html += `<td class="col-total">${formatearNumeroCorto(totalIA)}</td></tr>`;
+
+    html += `<tr class="seccion-header egreso"><td colspan="14">EGRESOS ${moduloActual.toUpperCase()}</td></tr>`;
+
+    let totalEA = 0;
+    for (const [grupo, cats] of Object.entries(egresosPorGrupo)) {
+        const info = tiposGasto[grupo] || { nombre: grupo };
+        html += `<tr class="grupo-header egreso"><td colspan="14">EGRESOS - ${info.nombre.toUpperCase()}</td></tr>`;
+        for (const cat of cats) {
+            let tc = 0;
+            html += `<tr class="fila-categoria"><td class="col-concepto">${cat.nombre}</td>`;
+            for (let m = 1; m <= 12; m++) {
+                const v = datosMensuales[m]?.egresosPorCategoria?.[cat.identificador] || 0;
+                tc += v;
+                html += `<td class="col-mes ${m === mesVisualizacion.mes ? 'mes-actual' : ''}">${v > 0 ? formatearNumeroCorto(v) : '-'}</td>`;
+            }
+            totalEA += tc;
+            html += `<td class="col-total">${tc > 0 ? formatearNumeroCorto(tc) : '-'}</td></tr>`;
+        }
+    }
+
+    html += `<tr class="fila-total egreso"><td class="col-concepto">TOTAL EGRESOS</td>`;
+    for (let m = 1; m <= 12; m++) html += `<td class="col-mes ${m === mesVisualizacion.mes ? 'mes-actual' : ''}">${formatearNumeroCorto(datosMensuales[m]?.totalEgresos || 0)}</td>`;
+    html += `<td class="col-total">${formatearNumeroCorto(totalEA)}</td></tr>`;
+
+    html += `<tr class="fila-balance"><td class="col-concepto">BALANCE</td>`;
+    for (let m = 1; m <= 12; m++) {
+        const b = (datosMensuales[m]?.totalIngresos || 0) - (datosMensuales[m]?.totalEgresos || 0);
+        html += `<td class="col-mes ${m === mesVisualizacion.mes ? 'mes-actual' : ''} ${b >= 0 ? 'positivo' : 'negativo'}">${formatearNumeroCorto(b)}</td>`;
+    }
+    html += `<td class="col-total ${totalIA - totalEA >= 0 ? 'positivo' : 'negativo'}">${formatearNumeroCorto(totalIA - totalEA)}</td></tr>`;
+
+    html += `</tbody></table></div>
+        <div class="presupuesto-acciones">
+            <button class="btn btn-primary" onclick="cambiarSeccion('cargar')">+ Cargar Movimiento</button>
+        </div></div>`;
+
+    contenedor.innerHTML = html;
+}
+
+function cambiarAnoPresupuesto(delta) {
+    mesVisualizacion.año += delta;
+    actualizarPeriodo();
+    cargarSeccion('presupuesto');
+}
+
+// ==========================================
+// 3. DASHBOARD INTELIGENTE
+// ==========================================
+
+async function renderDashboardInteligente(contenedor) {
+    const { año, mes } = mesVisualizacion;
+    const resumen = await calcularResumenMes(moduloActual, año, mes);
+    const diasOxigeno = await calcularDiasOxigeno(moduloActual);
+    const liquidez = await calcularLiquidezSemanal(moduloActual);
+    const cuentas = await calcularTodosSaldos(moduloActual);
+    const totalCaja = cuentas.filter(c => c.activa !== false).reduce((s, c) => s + c.saldoActual, 0);
+    const alertas = await obtenerAlertas(moduloActual);
+
+    let saludNT = null;
+    if (moduloActual === 'neurotea') saludNT = await calcularSaludNT(año, mes);
+
+    const nivelOx = diasOxigeno.diasOxigeno >= 90 ? 'excelente' : diasOxigeno.diasOxigeno >= 60 ? 'bueno' : diasOxigeno.diasOxigeno >= 30 ? 'alerta' : 'critico';
+
+    let html = `<div class="dashboard-inteligente">
+        <div class="indicadores-grid">
+            <div class="indicador-card ${nivelOx}">
+                <div class="indicador-header"><span class="indicador-titulo">Dias de Oxigeno</span></div>
+                <div class="indicador-valor-grande">${Math.round(diasOxigeno.diasOxigeno)}</div>
+                <div class="indicador-meta">Meta: 90 dias</div>
+                <div class="barra-progreso"><div class="barra-fill ${nivelOx}" style="width: ${Math.min(100, (diasOxigeno.diasOxigeno / 90) * 100)}%"></div></div>
+                <div class="indicador-detalle">Caja: ${formatearMoneda(totalCaja)}</div>
+            </div>
+            <div class="indicador-card">
+                <div class="indicador-header"><span class="indicador-titulo">Caja Total</span></div>
+                <div class="indicador-valor-grande">${formatearMoneda(totalCaja)}</div>
+                <div class="cuentas-mini">${cuentas.filter(c => c.activa !== false).map(c => `<div class="cuenta-mini"><span>${c.nombre}</span><span>${formatearMoneda(c.saldoActual)}</span></div>`).join('')}</div>
+            </div>
+            <div class="indicador-card ${resumen.balance >= 0 ? 'positivo' : 'negativo'}">
+                <div class="indicador-header"><span class="indicador-titulo">Balance ${getNombreMes(mes)}</span></div>
+                <div class="indicador-valor-grande ${resumen.balance >= 0 ? 'positivo' : 'negativo'}">${resumen.balance >= 0 ? '+' : ''}${formatearMoneda(resumen.balance)}</div>
+                <div class="balance-detalle"><span class="positivo">+${formatearMoneda(resumen.totalIngresos)}</span><span class="negativo">-${formatearMoneda(resumen.totalEgresos)}</span></div>
+            </div>`;
+
+    if (saludNT) {
+        const cumple = saludNT.porcentajeGastos <= 93;
+        html += `<div class="indicador-card ${cumple ? 'positivo' : 'negativo'}">
+            <div class="indicador-header"><span class="indicador-titulo">Modelo 93/7</span></div>
+            <div class="modelo-93-7-mini">
+                <div class="modelo-barra"><div class="modelo-gastos" style="width: ${Math.min(100, saludNT.porcentajeGastos)}%">${Math.round(saludNT.porcentajeGastos)}%</div></div>
+                <div class="modelo-labels"><span>Gastos: ${Math.round(saludNT.porcentajeGastos)}%</span><span>Ganancia: ${Math.round(saludNT.porcentajeGanancia)}%</span></div>
+            </div>
+            <div class="indicador-estado">${cumple ? 'Cumple modelo' : 'Excede gastos'}</div>
+        </div>`;
+    }
+    html += `</div>`;
+
+    if (alertas.length > 0) {
+        html += `<div class="card alertas-card mt-4"><div class="card-header"><span class="card-title">Alertas (${alertas.length})</span></div>
+            <div class="card-body"><div class="alertas-lista">${alertas.map(a => `
+                <div class="alerta-item ${a.nivel}"><span class="alerta-icono">${a.icono}</span>
+                <div class="alerta-contenido"><span class="alerta-mensaje">${a.mensaje}</span><span class="alerta-detalle">${a.detalle || ''}</span></div>
+                ${a.accion ? `<button class="btn btn-sm btn-outline" onclick="${a.accion.onclick}">${a.accion.texto}</button>` : ''}</div>`).join('')}
+            </div></div></div>`;
+    }
+
+    const saldoDespues = totalCaja - liquidez.atrasados.total - liquidez.estaSemana.total;
+    html += `<div class="dashboard-grid mt-4">
+        <div class="card"><div class="card-header"><span class="card-title">Liquidez Semanal</span></div>
+            <div class="card-body">
+                <div class="liquidez-resumen">
+                    <div class="liquidez-item ${liquidez.atrasados.total > 0 ? 'alerta' : ''}"><span class="liquidez-label">Atrasados</span><span class="liquidez-valor">${formatearMoneda(liquidez.atrasados.total)}</span></div>
+                    <div class="liquidez-item"><span class="liquidez-label">Esta Semana</span><span class="liquidez-valor">${formatearMoneda(liquidez.estaSemana.total)}</span></div>
+                    <div class="liquidez-item"><span class="liquidez-label">Proxima Semana</span><span class="liquidez-valor">${formatearMoneda(liquidez.proximaSemana.total)}</span></div>
+                </div>
+                <div class="liquidez-calculo">
+                    <div class="calculo-fila"><span>Caja actual</span><span>${formatearMoneda(totalCaja)}</span></div>
+                    <div class="calculo-fila negativo"><span>- Pagos pendientes</span><span>${formatearMoneda(liquidez.atrasados.total + liquidez.estaSemana.total)}</span></div>
+                    <div class="calculo-fila resultado ${saldoDespues >= 0 ? 'positivo' : 'negativo'}"><span>= Saldo despues</span><span>${formatearMoneda(saldoDespues)}</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="card"><div class="card-header"><span class="card-title">Resumen ${getNombreMes(mes)}</span></div><div class="card-body"><div id="chart-resumen-mes"></div></div></div>
+    </div>
+    <div class="acciones-rapidas mt-4">
+        <button class="accion-btn" onclick="cambiarSeccion('cargar')"><span class="accion-icono">+</span><span>Cargar</span></button>
+        <button class="accion-btn" onclick="cambiarSeccion('presupuesto')"><span class="accion-icono">T</span><span>Presupuesto</span></button>
+        <button class="accion-btn" onclick="cambiarSeccion('movimientos')"><span class="accion-icono">$</span><span>Movimientos</span></button>
+        <button class="accion-btn" onclick="cambiarSeccion('configurar')"><span class="accion-icono">*</span><span>Configurar</span></button>
+    </div></div>`;
+
+    contenedor.innerHTML = html;
+    if (typeof renderIngresosVsEgresos === 'function') renderIngresosVsEgresos('chart-resumen-mes', resumen.totalIngresos, resumen.totalEgresos);
+}
+
+async function obtenerAlertas(modulo) {
+    const alertas = [];
+    const hoy = new Date();
+    const hoyStr = formatearFechaInput(hoy);
+
+    const gastosFijos = await obtenerTodos(`${modulo}_gastos_fijos`);
+    for (const g of gastosFijos.filter(x => x.estado === 'pendiente' && x.fechaVencimiento && x.fechaVencimiento <= hoyStr)) {
+        const dias = Math.floor((hoy - new Date(g.fechaVencimiento)) / 86400000);
+        alertas.push({ nivel: dias > 0 ? 'critico' : 'advertencia', icono: dias > 0 ? '!' : '?', mensaje: `${g.nombre || getNombreCategoria(g.categoria)} ${dias > 0 ? 'vencido' : 'vence hoy'}`, detalle: formatearMoneda(g.montoPresupuestado || g.monto), accion: { texto: 'Pagado', onclick: `marcarGastoPagado('${g.id}')` } });
+    }
+
+    const diasOx = await calcularDiasOxigeno(modulo);
+    if (diasOx.diasOxigeno < 30) alertas.push({ nivel: 'critico', icono: '!', mensaje: `Dias de oxigeno: ${Math.round(diasOx.diasOxigeno)}`, detalle: 'Menos de 1 mes' });
+
+    return alertas.sort((a, b) => (a.nivel === 'critico' ? 0 : 1) - (b.nivel === 'critico' ? 0 : 1));
+}
+
+async function marcarGastoPagado(id) {
+    try {
+        await actualizar(`${moduloActual}_gastos_fijos`, id, { estado: 'pagado' });
+        mostrarToast('Marcado como pagado', 'exito');
+        cargarSeccion('dashboard');
+    } catch (e) { mostrarToast('Error', 'error'); }
+}
+
+// ==========================================
+// 4. CONFIGURAR
+// ==========================================
+
+async function renderConfigurar(contenedor) {
+    let categoriasDB = await obtenerTodasCategorias(moduloActual);
+    if (categoriasDB.length === 0) {
+        await inicializarCategoriasPredeterminadas(moduloActual);
+        categoriasDB = await obtenerTodasCategorias(moduloActual);
+    }
+
+    const cuentas = await obtenerTodos(`${moduloActual}_cuentas`);
+    const tiposGasto = getTiposGasto(moduloActual);
+
+    const catI = categoriasDB.filter(c => c.tipo === 'ingreso');
+    const catE = categoriasDB.filter(c => c.tipo === 'egreso');
+
+    const egresosPorGrupo = {}, ingresosPorGrupo = {};
+    for (const c of catE) { const g = c.tipoGasto || 'variables'; if (!egresosPorGrupo[g]) egresosPorGrupo[g] = []; egresosPorGrupo[g].push(c); }
+    for (const c of catI) { const g = c.persona || 'principal'; if (!ingresosPorGrupo[g]) ingresosPorGrupo[g] = []; ingresosPorGrupo[g].push(c); }
+
+    const nombresGI = { marco: 'Marco', clara: 'Clara', desde_nt: 'Desde NT', principal: 'Principal', otro: 'Otro' };
+
+    let html = `<div class="configurar-container">
+        <div class="config-tabs">
+            <button class="config-tab active" onclick="cambiarTabConfig('categorias')">Categorias</button>
+            <button class="config-tab" onclick="cambiarTabConfig('cuentas')">Cuentas</button>
+            <button class="config-tab" onclick="cambiarTabConfig('datos')">Datos</button>
+        </div>
+        <div class="config-content" id="tab-categorias">
+            <div class="config-section">
+                <div class="section-header"><h3>Categorias de Ingreso</h3><button class="btn btn-sm btn-primary" onclick="abrirFormularioCategoria('ingreso')">+ Nueva</button></div>`;
+
+    for (const [g, cats] of Object.entries(ingresosPorGrupo)) {
+        html += `<div class="grupo-categorias"><div class="grupo-header">${nombresGI[g] || g.toUpperCase()}</div><div class="categorias-lista">`;
+        for (const c of cats) html += `<div class="categoria-item ${c.activa === false ? 'inactiva' : ''}"><span>${c.nombre}</span><div class="categoria-acciones">${c.sistema ? '<span class="badge-sistema">Sistema</span>' : `<button class="btn-icon" onclick="toggleCategoria('${c.id}', ${c.activa !== false})">${c.activa !== false ? 'x' : 'o'}</button>`}</div></div>`;
+        html += `</div></div>`;
+    }
+
+    html += `</div><div class="config-section mt-4"><div class="section-header"><h3>Categorias de Egreso</h3><button class="btn btn-sm btn-primary" onclick="abrirFormularioCategoria('egreso')">+ Nueva</button></div>`;
+
+    for (const [g, cats] of Object.entries(egresosPorGrupo)) {
+        const info = tiposGasto[g] || { nombre: g, icono: '' };
+        html += `<div class="grupo-categorias"><div class="grupo-header">${info.icono} ${info.nombre.toUpperCase()}</div><div class="categorias-lista">`;
+        for (const c of cats) html += `<div class="categoria-item ${c.activa === false ? 'inactiva' : ''}"><span>${c.nombre}</span><div class="categoria-acciones">${c.sistema ? '<span class="badge-sistema">Sistema</span>' : `<button class="btn-icon" onclick="toggleCategoria('${c.id}', ${c.activa !== false})">${c.activa !== false ? 'x' : 'o'}</button>`}</div></div>`;
+        html += `</div></div>`;
+    }
+
+    html += `</div></div>
+        <div class="config-content hidden" id="tab-cuentas">
+            <div class="config-section"><div class="section-header"><h3>Mis Cuentas</h3><button class="btn btn-sm btn-primary" onclick="abrirFormularioCuenta()">+ Nueva</button></div>
+            <div class="cuentas-lista">${cuentas.length === 0 ? '<p>No hay cuentas</p>' : cuentas.map(c => `<div class="cuenta-item"><span>${c.nombre}</span><span>${TIPOS_CUENTA[c.tipo]?.nombre || c.tipo}</span></div>`).join('')}</div></div>
+        </div>
+        <div class="config-content hidden" id="tab-datos">
+            <div class="config-section"><h3>Respaldo</h3><div class="botones-grupo"><button class="btn btn-primary" onclick="exportarTodoJSON()">Exportar</button><button class="btn btn-secondary" onclick="document.getElementById('input-importar-config').click()">Importar</button><input type="file" id="input-importar-config" accept=".json" class="hidden" onchange="importarDesdeJSON(this.files[0])"></div></div>
+            <div class="config-section mt-4"><h3 style="color:red;">Zona Peligro</h3><button class="btn btn-outline" onclick="reiniciarCategorias()">Reiniciar Categorias</button><button class="btn btn-danger" onclick="mostrarBorradoSeguro('${moduloActual}')">Borrar datos</button></div>
+        </div>
+    </div>`;
+
+    contenedor.innerHTML = html;
+}
+
+function cambiarTabConfig(tab) {
+    document.querySelectorAll('.config-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.config-content').forEach(c => c.classList.add('hidden'));
+    document.querySelector(`[onclick="cambiarTabConfig('${tab}')"]`).classList.add('active');
+    document.getElementById(`tab-${tab}`).classList.remove('hidden');
+}
+
+async function abrirFormularioCategoria(tipo) {
+    const tiposGasto = getTiposGasto(moduloActual);
+    let grupoHTML = tipo === 'egreso' ? `<div class="form-group"><label>Tipo Gasto</label><select class="form-control" id="cat-grupo">${Object.entries(tiposGasto).map(([k, v]) => `<option value="${k}">${v.nombre}</option>`).join('')}</select></div>` : (moduloActual === 'familia' ? `<div class="form-group"><label>Persona</label><select class="form-control" id="cat-grupo"><option value="marco">Marco</option><option value="clara">Clara</option><option value="otro">Otro</option></select></div>` : '');
+
+    const html = `<form id="form-categoria"><input type="hidden" id="cat-tipo" value="${tipo}"><div class="form-group"><label>Nombre</label><input type="text" class="form-control" id="cat-nombre" required></div>${grupoHTML}<div class="form-group"><label>ID (auto)</label><input type="text" class="form-control" id="cat-identificador" readonly></div></form>`;
+
+    document.getElementById('modal-form-titulo').textContent = `Nueva Categoria ${tipo}`;
+    document.getElementById('modal-form-contenido').innerHTML = html;
+    document.getElementById('modal-form-guardar').onclick = guardarCategoria;
+
+    document.getElementById('cat-nombre').addEventListener('input', function () {
+        document.getElementById('cat-identificador').value = this.value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+    });
+
+    abrirModal('modal-formulario');
+}
+
+async function guardarCategoria() {
+    const tipo = document.getElementById('cat-tipo').value;
+    const nombre = document.getElementById('cat-nombre').value.trim();
+    const identificador = document.getElementById('cat-identificador').value;
+    const grupoSelect = document.getElementById('cat-grupo');
+
+    if (!nombre) { mostrarToast('Ingrese nombre', 'error'); return; }
+
+    try {
+        const datos = { tipo, nombre, identificador, activa: true, sistema: false };
+        if (tipo === 'ingreso' && moduloActual === 'familia' && grupoSelect) datos.persona = grupoSelect.value;
+        else if (tipo === 'egreso' && grupoSelect) datos.tipoGasto = grupoSelect.value;
+
+        await crear(`${moduloActual}_categorias`, datos);
+        mostrarToast('Categoria creada', 'exito');
+        cerrarModal('modal-formulario');
+        cargarSeccion('configurar');
+    } catch (e) { mostrarToast('Error', 'error'); }
+}
+
+async function toggleCategoria(id, activa) {
+    try {
+        await actualizar(`${moduloActual}_categorias`, id, { activa: !activa });
+        mostrarToast(`Categoria ${activa ? 'desactivada' : 'activada'}`, 'exito');
+        cargarSeccion('configurar');
+    } catch (e) { mostrarToast('Error', 'error'); }
+}
+
+async function reiniciarCategorias() {
+    if (await confirmarAccion('Reiniciar', 'Se eliminaran categorias personalizadas')) {
+        const cats = await obtenerTodos(`${moduloActual}_categorias`);
+        for (const c of cats) await eliminar(`${moduloActual}_categorias`, c.id);
+        await inicializarCategoriasPredeterminadas(moduloActual);
+        mostrarToast('Categorias reiniciadas', 'exito');
+        cargarSeccion('configurar');
     }
 }
